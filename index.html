@@ -169,7 +169,13 @@ table.pay td.num{font-family:var(--mono);text-align:right;padding:0 8px;font-siz
 .gate-card h1{font-size:22px;font-weight:600;margin:0}
 .gate-card p{color:var(--ink-2);margin:0 0 6px}
 .gate-card label{font-size:12px;color:var(--ink-2)}
-.gate-card input{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--ink)}
+.gate-field{position:relative;display:flex}
+.gate-card input{font:inherit;font-size:16px;padding:9px 42px 9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--ink);width:100%}
+.gate-card .gate-eye{position:absolute;right:0;top:0;bottom:0;width:42px;display:flex;align-items:center;justify-content:center;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--muted);cursor:pointer;padding:0;margin:0;line-height:0;font-weight:400}
+.gate-card .gate-eye svg{display:block}
+.gate-card .gate-eye .eye-closed{display:block}
+.gate-card .gate-eye[aria-pressed="true"] .eye-closed{display:none}
+.gate-card .gate-eye:hover,.gate-card .gate-eye:focus-visible,.gate-card .gate-eye[aria-pressed="true"]{color:var(--ink);outline:none;background:transparent}
 .gate-card button{font:inherit;font-weight:600;padding:10px;border:0;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer}
 .gate-card button:disabled{opacity:.6;cursor:wait}
 .gate-err{color:var(--critical-text);font-size:13px;min-height:1.2em}
@@ -294,10 +300,10 @@ table.pay td.num{font-family:var(--mono);text-align:right;padding:0 8px;font-siz
 <div id="gate" class="gate" hidden>
   <form id="gate-form" class="gate-card" autocomplete="on">
     <div class="eyebrow">Consorcio · Liquidaciones de expensas</div>
-    <h1>Fideicomiso AVE 01</h1>
-    <p>Los datos del tablero están cifrados. Ingresá la clave compartida en el grupo de propietarios.</p>
+    <h1>Alley - Fideicomiso AVE 01</h1>
+    <p>Los datos del tablero están encriptados.</p>
     <label for="gate-pw">Clave</label>
-    <input id="gate-pw" type="password" autocomplete="current-password" required>
+    <div class="gate-field"><input id="gate-pw" type="password" autocomplete="current-password" required><button type="button" id="gate-toggle" class="gate-eye" aria-label="Mostrar clave" aria-pressed="false" title="Mostrar clave"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="eye-open" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle class="eye-open" cx="12" cy="12" r="3"/><path class="eye-closed" d="M3 3l18 18"/></svg></button></div>
     <button type="submit" id="gate-btn">Entrar</button>
     <div id="gate-err" class="gate-err" role="alert"></div>
   </form>
@@ -778,6 +784,7 @@ renderMonth();
   let saved = null; try{ saved = localStorage.getItem('expensas-key'); }catch(e){}
   if(saved && await attempt(saved, false)) return;
   wrap.hidden = true; gate.hidden = false; input.focus();
+  const eye = document.getElementById('gate-toggle'); eye.addEventListener('click', ()=>{ const show = input.type === 'password'; input.type = show? 'text' : 'password'; eye.setAttribute('aria-pressed', show? 'true' : 'false'); eye.setAttribute('aria-label', show? 'Ocultar clave' : 'Mostrar clave'); eye.title = eye.getAttribute('aria-label'); input.focus(); });
   form.addEventListener('submit', async ev=>{ ev.preventDefault(); err.textContent = ''; const btn = form.querySelector('button'); btn.disabled = true; const ok = await attempt(input.value.trim(), true); btn.disabled = false; if(!ok){ err.textContent = 'Clave incorrecta. Probá de nuevo.'; input.select(); } });
 })();
 </script>
