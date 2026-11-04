@@ -10,6 +10,8 @@ controles automáticos sobre la administración.
 - `index.html` — el tablero. Carga `data.js` y calcula todo en el navegador.
 - `data.json` / `data.js` — datos extraídos (se regeneran; no editar a mano).
 - `refresh.sh` — regenera los datos (crea el entorno virtual la primera vez). Deja un `refresh.log`.
+- `encrypt_data.py` — cifra `data.json` → `data.enc` con la clave de `.password` para publicarlo.
+- `data.enc` — datos cifrados que se publican; `data.js` queda solo para uso local.
 
 ## Regenerar cuando llega una liquidación nueva
 
@@ -49,23 +51,19 @@ launchctl bootout gui/$(id -u)/com.felipegorostiaga.expensas-refresh && rm ~/Lib
 
 ## Publicación para los vecinos
 
-El tablero se publica en Cloudflare Pages a partir del repositorio privado
-`github.com/FelipeGorostiaga/expensas-ave01` (cuenta personal). `refresh.sh` hace
-commit y push de `data.js` cada vez que cambia, y Cloudflare redespliega solo en uno
-o dos minutos. Los PDF nunca se suben: `.gitignore` los excluye.
+El tablero se publica en **GitHub Pages** desde el repositorio público
+`github.com/FelipeGorostiaga/expensas-ave01-tablero` (cuenta personal), en
+`https://felipegorostiaga.github.io/expensas-ave01-tablero/`.
 
-Configuración en Cloudflare (una sola vez, con la cuenta personal):
+Como el repositorio es público, los datos **no se suben en claro**: `refresh.sh` cifra
+`data.json` con la clave guardada en `.password` (AES-256-GCM, clave derivada con PBKDF2)
+y publica solo `data.enc`. La página pide la clave, descifra en el navegador y la recuerda
+en ese dispositivo. Sin la clave, el repositorio solo expone el código del tablero.
+Los PDF y `data.js` (sin cifrar) nunca se suben.
 
-1. Workers & Pages → Create → Pages → Connect to Git → autorizar la app de GitHub
-   solo para el repo `expensas-ave01` → Framework preset: None, Build command: vacío,
-   Build output directory: `/` → Save and Deploy. Queda en `https://<nombre>.pages.dev`.
-2. Para que solo entren los vecinos: Zero Trust → Access → Applications → Add an
-   application → Self-hosted → dominio `<nombre>.pages.dev` → política *Allow* con
-   regla *Emails* (la lista de mails de los vecinos) → listo. Cada vecino entra con un
-   código que le llega por mail; no hace falta cuenta de Cloudflare. El plan gratuito
-   cubre hasta 50 personas.
-
-Para dar de alta o baja a un vecino, se edita la lista de mails de esa política.
+- **Cambiar la clave:** editar `.password`, ejecutar `FORCE=1 ./refresh.sh` y avisar al grupo.
+- **Activar Pages (una vez):** en GitHub, Settings → Pages → Source: *Deploy from a branch*,
+  Branch: `main`, carpeta `/ (root)`. Cada push redespliega en un minuto.
 
 ## Qué calcula el tablero
 
