@@ -1,0 +1,10 @@
+venv/
+refresh.log
+data.json
+*.pdf
+.DS_Store
+.claude/
+.pdf-state
+.refresh.lock/
+data.js
+.password
