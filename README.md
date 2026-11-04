@@ -67,18 +67,28 @@ Los PDF y `data.js` (sin cifrar) nunca se suben.
 
 ## Qué calcula el tablero
 
-- **Resumen**: gasto del mes, variación, deuda de propietarios, saldo de caja, costo de
-  administrar y los hallazgos principales.
-- **Precios**: importe neto por proveedor y mes (sin previsiones ni reintegros), variación
-  entre el primer y el último mes, mayor salto mensual, índice base 100.
+Arriba de todo hay dos selectores: el **mes** (por defecto, el último) y la **unidad**. El mes
+elegido se compara siempre con el anterior y manda sobre Resumen, Novedades, Precios,
+Unidades, Finanzas y el filtro de Detalle. La unidad elegida se recuerda en el dispositivo.
+
+- **Resumen**: gasto del mes elegido, variación contra el mes anterior, deuda de propietarios,
+  saldo de caja, costo de administrar, tabla mes a mes (clic en una fila cambia el mes),
+  hallazgos del período y preguntas para la administración.
+- **Novedades**: todo lo que cambió en el mes elegido: proveedores nuevos o que dejaron de
+  facturar, subas y bajas, gastos puntuales, unidades que dejaron de pagar o se pusieron al
+  día, previsiones, notas de la administración.
+- **Precios**: importe neto por proveedor y mes, qué cambió contra el mes anterior, índice
+  base 100, variación del período y mayor salto.
 - **Proveedores**: CUIT, meses activos, promedio mensual, concentración del gasto,
-  proveedores que dejaron de aparecer o que son nuevos.
-- **Unidades y morosidad**: deudores, intereses, cobranza, historial de pago de las
-  111 unidades y la evolución de la unidad de referencia.
-- **Finanzas**: saldo al cierre, ingresos vs. gastos, estado financiero y patrimonial
-  mes a mes, conciliación de previsiones y reintegros.
-- **Controles**: encadenamiento de saldos, aritmética del estado financiero,
-  coeficientes, saltos de precio, posibles duplicados, proveedores sin CUIT, etc.
+  proveedores que dejaron de aparecer o que son nuevos (todo el período).
+- **Unidades y morosidad**: deudores al cierre del mes elegido, cobranza, historial de pago
+  de todas las unidades, y para la unidad elegida: **qué pagás vos** (la cuota del mes
+  desglosada por proveedor y rubro según el coeficiente) y su historial.
+- **Finanzas**: saldo al cierre (impreso y más previsiones), ingresos vs. gastos, y para el
+  mes elegido: gasto por rubro, estado financiero y patrimonial comparado con el mes
+  anterior, previsiones hechas y reintegradas.
+- **Controles**: encadenamiento de saldos, aritmética del estado financiero, coeficientes,
+  saltos de precio, posibles duplicados, proveedores sin CUIT, etc.
 - **Detalle**: todas las facturas con filtros por mes, rubro y texto.
 
 Las variaciones son nominales (sin ajustar por inflación).
