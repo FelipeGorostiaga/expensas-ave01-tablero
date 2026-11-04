@@ -96,6 +96,7 @@ table.data th{font-weight:500;color:var(--ink-2);font-size:12px;background:var(-
 table.data th .arrow{color:var(--muted);font-size:10px;margin-left:4px}
 table.data td.num,table.data th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12.5px}
 table.data td.wrap{white-space:normal;min-width:260px;max-width:520px}
+table.data td.sel{background:var(--surface-2)}
 table.data tr.clickable{cursor:pointer}
 table.data tr.clickable:hover td{background:var(--surface-2)}
 table.data tr.selected td{background:var(--accent-soft)}
@@ -192,14 +193,16 @@ table.pay td.num{font-family:var(--mono);text-align:right;padding:0 8px;font-siz
       <div class="card"><h3>Gasto mensual por rubro <span class="hint">según totales impresos en cada liquidación</span></h3><div class="chart" id="ch-rubros"></div></div>
       <div class="card"><h3>Hallazgos principales</h3><div class="alerts" id="alerts"></div></div>
     </div>
+    <div class="card stack"><h3>Mes a mes <span class="hint">variación de cada mes respecto al anterior</span></h3><div class="tablewrap" id="tbl-mes"></div></div>
     <div class="card stack"><h3>Preguntas para la administración <span class="hint">lo que estos números no explican por sí solos</span></h3><ul id="preguntas" style="margin:0;padding-left:20px;color:var(--ink-2);line-height:1.55"></ul></div>
   </section>
 
   <section class="panel" id="panel-precios" role="tabpanel">
     <h2>Qué subió y cuánto</h2>
-    <p class="lead">Importe neto facturado por proveedor en cada mes (sin previsiones ni reintegros, que se compensan entre meses). La variación compara el primer mes con facturación contra el último. Un salto es la mayor suba entre dos meses consecutivos.</p>
+    <p class="lead">Importe neto facturado por proveedor en cada mes (sin previsiones ni reintegros, que se compensan entre meses). Elegí un mes para ver qué cambió respecto al anterior. "Var. período" compara el primer mes con facturación contra el último; "mayor salto" es la mayor suba entre dos meses consecutivos. Variaciones nominales, sin ajustar por inflación.</p>
+    <div class="filters"><label>Mes <select id="precios-mes"></select></label><span class="muted" id="precios-hint"></span></div>
     <div class="grid two">
-      <div class="card"><h3>Variación entre primer y último mes <span class="hint">proveedores recurrentes con más de $1 M facturados</span></h3><div class="chart" id="ch-variacion"></div></div>
+      <div class="card"><h3>Qué cambió respecto al mes anterior <span class="hint">diferencia en pesos; los 14 movimientos más grandes</span></h3><div class="chart" id="ch-variacion"></div></div>
       <div class="card"><h3>Evolución de los principales abonos <span class="hint">índice base 100 en febrero</span></h3><div class="chart" id="ch-indice"></div></div>
     </div>
     <div class="card stack"><h3>Proveedores y conceptos <span class="hint">clic en una columna para ordenar; clic en una fila para ver sus facturas</span></h3><div class="tablewrap" id="tbl-precios"></div><div class="detail-box" id="precios-detail"></div></div>
@@ -222,7 +225,8 @@ table.pay td.num{font-family:var(--mono);text-align:right;padding:0 8px;font-siz
       <div class="card"><h3>Deuda total y recaudación <span class="hint">según el estado de cuenta de cada mes</span></h3><div class="chart" id="ch-deuda"></div></div>
     </div>
     <div class="card stack">
-      <h3>Mi unidad <span class="hint" id="mi-uf-hint"></span></h3>
+      <h3>Consultar una unidad <span class="hint" id="mi-uf-hint">elegí tu unidad para ver su historial</span></h3>
+      <div class="filters"><label>Unidad <select id="uf-select"><option value="">—</option></select></label></div>
       <div class="grid two"><div class="chart" id="ch-miuf"></div><div class="tablewrap" id="tbl-miuf"></div></div>
     </div>
     <div class="card stack">
@@ -262,7 +266,6 @@ table.pay td.num{font-family:var(--mono);text-align:right;padding:0 8px;font-siz
     <div class="card"><div class="tablewrap" id="tbl-detalle" style="max-height:70vh;overflow:auto"></div></div>
   </section>
 
-  <div class="foot" id="foot"></div>
 </div>
 <div id="gate" class="gate" hidden>
   <form id="gate-form" class="gate-card" autocomplete="on">
@@ -287,7 +290,6 @@ const P = M.map(m=>m.period); const N = P.length; const LAST = M[N-1]; const FIR
 const MON = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
 const MONL = {'01':'enero','02':'febrero','03':'marzo','04':'abril','05':'mayo','06':'junio','07':'julio','08':'agosto','09':'septiembre','10':'octubre','11':'noviembre','12':'diciembre'};
 const lab = p => MON[p.slice(5)]; const labL = p => MONL[p.slice(5)] + ' ' + p.slice(0,4);
-const MY_UF = (()=>{ const f = (D.generated_from||[])[0]||''; const m = f.match(/UF-([A-Z0-9]+)-/); return m?m[1]:'TH3'; })();
 
 // ---------- formatting ----------
 const nfARS = new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0});
@@ -458,21 +460,21 @@ const collectionRate = M.map((m,i)=> totalSaldoAnt[i]>0 ? totalPago[i]/totalSald
 
 // ---------- header ----------
 $('subtitle').textContent = `Liquidaciones de ${labL(P[0])} a ${labL(P[N-1])} · ${N} meses · ${UFS.length} unidades funcionales`;
-$('meta').append(h('div',{text:`Administración: ${(LAST.provider_registry||[]).find(r=>r.name==='ADMINISTRACION IRIARTE')? 'Administración Iriarte' : 'según liquidación'}`}), h('div',{text:`Último vencimiento informado: ${LAST.due_date||'—'}`}), h('div',{text:`Unidad de referencia: ${MY_UF}`}));
+$('meta').append(h('div',{text:`Administración: ${(LAST.provider_registry||[]).find(r=>r.name==='ADMINISTRACION IRIARTE')? 'Administración Iriarte' : 'según liquidación'}`}), h('div',{text:`Último vencimiento informado: ${LAST.due_date||'—'}`}));
 
 // ---------- RESUMEN ----------
 (function resumen(){
   const t = totals[N-1], tPrev = totals[N-2], t0 = totals[0];
   const hero = $('hero');
   hero.append(h('div',{}, h('div',{class:'eyebrow',text:`Gasto total del consorcio · ${labL(P[N-1])}`}), h('div',{class:'big'}, compact(t), h('small',{text: ars(t)}))),
-    h('div',{class:'ctx'}, h('div',{}, 'Variación contra ', labL(P[N-2]), ': ', pctCell(t/tPrev-1), ' · contra ', labL(P[0]), ': ', pctCell(t/t0-1)), h('div',{class:'muted',text:`Incluye ABL (${compact(LAST.grand_total.abl)}) que la administración paga y prorratea. Sin ABL: ${compact(LAST.grand_total.expensas)}.`})));
+    h('div',{class:'ctx'}, h('div',{}, 'vs. ', labL(P[N-2]), ': ', pctCell(t/tPrev-1), N>=4? [' · vs. ', labL(P[N-4]), ' (3 meses): ', pctCell(t/totals[N-4]-1)] : null, ' · promedio mensual del período: ', h('b',{text:compact(sum(totals)/N)})), h('div',{class:'muted',text:`Incluye ABL (${compact(LAST.grand_total.abl)}) que la administración paga y prorratea. Sin ABL: ${compact(LAST.grand_total.expensas)}.`})));
   const k = $('kpis');
   function kpi(label, value, deltaNode, sparkVals, color){ const c = h('div',{class:'card kpi'}, h('div',{class:'label',text:label}), h('div',{class:'value',text:value})); if(deltaNode) c.append(h('div',{class:'delta'}, deltaNode)); if(sparkVals) c.append(spark(sparkVals, color)); k.append(c); }
   const dn = (v, upBad=true, suffix='') => { const n = h('span',{class:'d '+(v>0.002?(upBad?'bad':'good'):v<-0.002?(upBad?'good':'bad'):''), text: pctf(v)}); return h('span',{}, n, ' '+suffix); };
-  kpi('Expensas sin ABL (último mes)', compact(LAST.grand_total.expensas), dn(LAST.grand_total.expensas/FIRST.grand_total.expensas-1, true, `desde ${lab(P[0])}`), M.map(m=>m.grand_total.expensas), 'var(--s1)');
-  kpi('Deuda de propietarios al cierre', compact(totalDeuda[N-1]), h('span',{}, `${debtors.length} unidades · intereses ${compact(totalInt[N-1])}`), totalDeuda, 'var(--s8)');
+  kpi('Expensas sin ABL (último mes)', compact(LAST.grand_total.expensas), dn(LAST.grand_total.expensas/M[N-2].grand_total.expensas-1, true, `vs. ${lab(P[N-2])}`), M.map(m=>m.grand_total.expensas), 'var(--s1)');
+  kpi('Deuda de propietarios al cierre', compact(totalDeuda[N-1]), h('span',{}, dn(totalDeuda[N-1]/(totalDeuda[N-2]||1)-1, true, `vs. ${lab(P[N-2])}`), h('span',{class:'muted',text:`· ${debtors.length} unidades · intereses ${compact(totalInt[N-1])}`})), totalDeuda, 'var(--s8)');
   const sc = LAST.financial.saldo_cierre||0; kpi('Saldo de caja al cierre', compact(sc), h('span',{}, sc<0? chip('critical','negativo todos los meses') : chip('good','positivo'), ` · más previsiones vigentes: ${compact(saldoAdj[N-1])}`), M.map(m=>m.financial.saldo_cierre), 'var(--s7)');
-  kpi('Costo de administrar', compact(adminCost[N-1]), h('span',{}, dn(adminCost[N-1]/adminCost[0]-1, true, `desde ${lab(P[0])}`), h('span',{class:'muted',text:'· honorarios + IVA + Octopus + asesor técnico'})), adminCost, 'var(--s5)');
+  kpi('Costo de administrar', compact(adminCost[N-1]), h('span',{}, dn(adminCost[N-1]/adminCost[N-2]-1, true, `vs. ${lab(P[N-2])}`), h('span',{class:'muted',text:'· honorarios + IVA + Octopus + asesor técnico'})), adminCost, 'var(--s5)');
   stackedBars($('ch-rubros'), P, rubroSeries, {aria:'Gasto mensual por rubro'});
   // alerts
   const al = $('alerts');
@@ -490,6 +492,9 @@ $('meta').append(h('div',{text:`Administración: ${(LAST.provider_registry||[]).
   if(noCuit.length) alert('info', `${noCuit.length} proveedores sin CUIT informado`, ...noCuit.slice(0,4).flatMap((g,i)=>[i?' · ':'', h('b',{text:g.name}), ` ${compact(g.total)}`]), noCuit.length>4? ` y ${noCuit.length-4} más.` : '.', ' Total: ', h('b',{text:compact(sum(noCuit.map(g=>g.total)))}), '.');
   if(otrosEgresos.length) alert('info', 'Egresos fuera del gasto mensual', ...otrosEgresos.map((o,i)=>h('span',{}, i?' · ':'', `${lab(o.period)}: ${o.label.replace('OTROS EGRESOS DEL CONSORCIO - ','')} `, h('b',{text:compact(o.amount)}))));
   if(validationIssues.length) alert('serious', 'Diferencias al leer los PDF', `${validationIssues.length} controles de suma no cuadran. Ver Controles.`); else alert('good', 'Los PDF cuadran internamente', `En los ${N} meses, la suma de facturas coincide con los totales impresos por rubro, y las filas por unidad con los totales del prorrateo.`);
+  // month-over-month table
+  const mrows = M.map((m,i)=>({period:m.period, total:totals[i], dTotal: i? totals[i]/totals[i-1]-1 : null, exp:m.grand_total.expensas, dExp: i? m.grand_total.expensas/M[i-1].grand_total.expensas-1 : null, banc:bancarios[i], deuda:totalDeuda[i], dDeuda: i&&totalDeuda[i-1]? totalDeuda[i]/totalDeuda[i-1]-1 : null, saldo:m.financial.saldo_cierre, cobro: collectionRate[i]}));
+  table($('tbl-mes'), [{key:'period', label:'Mes', render:r=>h('span',{class:'pill-month',text:labL(r.period)})}, {key:'total', label:'Gasto total', num:true, fmt:compact}, {key:'dTotal', label:'Δ', num:true, render:r=>pctCell(r.dTotal)}, {key:'exp', label:'Expensas sin ABL', num:true, fmt:compact}, {key:'dExp', label:'Δ', num:true, render:r=>pctCell(r.dExp)}, {key:'banc', label:'Gastos bancarios', num:true, fmt:compact}, {key:'deuda', label:'Deuda propietarios', num:true, fmt:compact}, {key:'dDeuda', label:'Δ', num:true, render:r=>r.dDeuda==null? null : h('span',{class:'pct '+(r.dDeuda>0.005?'up':r.dDeuda<-0.005?'down':''), text:pctf(r.dDeuda)})}, {key:'cobro', label:'Cobranza', num:true, render:r=>r.cobro==null? null : pctf(r.cobro,false)}, {key:'saldo', label:'Saldo de caja', num:true, render:r=>h('span',{style:r.saldo<0?'color:var(--critical-text)':''}, compact(r.saldo))}], mrows, {sortKey:'period', sortDir:1});
   // questions for the administration
   const q = $('preguntas'); const ask = (...parts) => q.append(h('li',{}, ...parts));
   const bancBase = sum(bancarios.slice(0,N-1))/(N-1);
@@ -505,21 +510,28 @@ $('meta').append(h('div',{text:`Administración: ${(LAST.provider_registry||[]).
 
 // ---------- PRECIOS ----------
 (function precios(){
-  const big = G.filter(g=>g.change!=null && g.total>1e6 && g.active>=Math.max(3,N-2)).sort((a,b)=>b.absChange-a.absChange);
-  hBars($('ch-variacion'), big.map(g=>({label:g.name, value:g.change, tip:[{label:`${lab(P[g.first])}`, value:compact(g.firstVal)},{label:`${lab(P[g.last])}`, value:compact(g.lastVal)},{label:'Diferencia mensual', value:compact(g.absChange)}]})), {aria:'Variación por proveedor'});
+  const sel = $('precios-mes'); P.forEach((p,i)=>{ if(i>0) sel.append(h('option',{value:String(i), text:labL(p)})); }); sel.value = String(N-1);
+  function renderPrecios(mi){
+    const pi = mi-1; const movers = G.map(g=>({g, a:g.values[pi], b:g.values[mi]})).filter(x=>Math.max(x.a,x.b)>150000 && Math.abs(x.b-x.a)>1).sort((x,y)=>Math.abs(y.b-y.a)-Math.abs(x.b-x.a));
+    const shown = movers.slice(0,14); const upSum = sum(movers.filter(x=>x.b>x.a).map(x=>x.b-x.a)), downSum = sum(movers.filter(x=>x.b<x.a).map(x=>x.a-x.b));
+    $('precios-hint').textContent = `${labL(P[mi])} vs. ${labL(P[pi])}: gasto total ${compact(totals[mi])} (${pctf(totals[mi]/totals[pi]-1)}) · subas ${compact(upSum)} · bajas ${compact(downSum)}`;
+    hBars($('ch-variacion'), shown.map(x=>({label:x.g.name, value:x.b-x.a, tip:[{label:lab(P[pi]), value:compact(x.a)},{label:lab(P[mi]), value:compact(x.b)},{label:'Variación', value: x.a>0? pctf(x.b/x.a-1) : (x.b>0?'nuevo':'desaparece')}]})), {aria:'Cambios respecto al mes anterior', fmt:v=>(v>0?'+':'')+compact(v)});
+    const cols = [{key:'name', label:'Proveedor / concepto', render:r=>h('span',{}, r.name, r.provider? null : h('span',{class:'muted',text:' (sin proveedor)'}))},
+      {key:'rubro', label:'Rubro', render:r=>[...r.rubros].join(', ')},
+      ...P.map((p,i)=>({key:'m'+i, label:lab(p), num:true, sortVal:r=>r.values[i], cls: i===mi?'sel':'', render:r=>r.values[i]? compact(r.values[i]) : null})),
+      {key:'dm', label:`Δ ${lab(P[mi])}`, num:true, sortVal:r=>r.values[mi]-r.values[pi], render:r=>{ const a=r.values[pi], b=r.values[mi]; if(a===b) return null; return h('span',{}, h('span',{class:'pct '+(b>a?'up':'down'), text:(b>a?'+':'')+compact(b-a)}), a>0&&b>0? h('span',{class:'muted',text:' '+pctf(b/a-1)}) : h('span',{class:'muted',text: b>a? ' nuevo' : ' desaparece'})); }},
+      {key:'total', label:'Total', num:true, fmt:compact},
+      {key:'change', label:'Var. período', num:true, render:r=>pctCell(r.change)},
+      {key:'maxJump', label:'Mayor salto', num:true, render:r=>r.maxJump==null? null : h('span',{}, pctCell(r.maxJump), h('span',{class:'muted',text:' '+lab(P[r.jumpAt])}))},
+      {key:'spark', label:'', render:r=>spark(r.values, 'var(--muted)')}];
+    table($('tbl-precios'), cols, G, {sortKey:'dm', sortDir:-1, onSelect: g=>itemsDetail($('precios-detail'), g)});
+  }
+  renderPrecios(N-1); sel.addEventListener('change', ()=>renderPrecios(parseInt(sel.value,10)));
   const topAb = G.filter(g=>g.active>=N-1 && g.values[0]>0 && !['Gastos bancarios'].includes(g.name)).slice(0,6);
   lineChart($('ch-indice'), P, topAb.map((g,k)=>({name:g.name, color:RUBRO_COLORS[k], values:g.values.map(v=>v>0? v/g.values[0]*100 : null)})), {base:100, fmt:v=>nf0.format(v), tipFmt:v=>nf0.format(v)+' (base 100)', endLabel:false, aria:'Índice de precios por proveedor'});
-  const cols = [{key:'name', label:'Proveedor / concepto', render:r=>h('span',{}, r.name, r.provider? null : h('span',{class:'muted',text:' (sin proveedor)'}))},
-    {key:'rubro', label:'Rubro', render:r=>[...r.rubros].join(', ')},
-    ...P.map((p,i)=>({key:'m'+i, label:lab(p), num:true, sortVal:r=>r.values[i], render:r=>r.values[i]? compact(r.values[i]) : null})),
-    {key:'total', label:'Total', num:true, fmt:compact},
-    {key:'change', label:'Variación', num:true, render:r=>pctCell(r.change)},
-    {key:'maxJump', label:'Mayor salto', num:true, render:r=>r.maxJump==null? null : h('span',{}, pctCell(r.maxJump), h('span',{class:'muted',text:' '+lab(P[r.jumpAt])}))},
-    {key:'spark', label:'', render:r=>spark(r.values, 'var(--muted)')}];
-  table($('tbl-precios'), cols, G, {sortKey:'total', sortDir:-1, onSelect: g=>itemsDetail($('precios-detail'), g)});
   const rub = {}; M.forEach((m,i)=>m.rubro_totals.forEach(rt=>{ (rub[rt.rubro]||(rub[rt.rubro]={name:rt.rubro, values:Array(N).fill(0)})).values[i] += rt.total; }));
   const rrows = Object.values(rub).map(r=>Object.assign(r, metrics(r)));
-  table($('tbl-rubros'), [{key:'name', label:'Rubro'}, ...P.map((p,i)=>({key:'m'+i, label:lab(p), num:true, sortVal:r=>r.values[i], render:r=>r.values[i]? compact(r.values[i]) : null})), {key:'total', label:'Total', num:true, fmt:compact}, {key:'change', label:'Variación', num:true, render:r=>pctCell(r.change)}], rrows, {sortKey:'total', footer: Object.assign({name:'Total general', total: compact(sum(totals)), change: pctCell(totals[N-1]/totals[0]-1)}, Object.fromEntries(P.map((p,i)=>['m'+i, compact(totals[i])])))});
+  table($('tbl-rubros'), [{key:'name', label:'Rubro'}, ...P.map((p,i)=>({key:'m'+i, label:lab(p), num:true, sortVal:r=>r.values[i], render:r=>r.values[i]? compact(r.values[i]) : null})), {key:'total', label:'Total', num:true, fmt:compact}, {key:'dlast', label:`Δ ${lab(P[N-1])}`, num:true, sortVal:r=>r.values[N-1]-r.values[N-2], render:r=>{ const a=r.values[N-2], b=r.values[N-1]; return a>0&&b>0? pctCell(b/a-1) : (a===b? null : h('span',{class:'muted',text:(b>a?'+':'')+compact(b-a)})); }}, {key:'change', label:'Var. período', num:true, render:r=>pctCell(r.change)}], rrows, {sortKey:'total', footer: Object.assign({name:'Total general', total: compact(sum(totals)), change: pctCell(totals[N-1]/totals[0]-1), dlast: pctCell(totals[N-1]/totals[N-2]-1)}, Object.fromEntries(P.map((p,i)=>['m'+i, compact(totals[i])])))});
 })();
 
 function itemsDetail(host, g){ host.replaceChildren(); host.append(h('h3',{}, `Facturas de ${g.name}`, h('span',{class:'hint',text:`${g.items.length} ítems · ${g.cuit? 'CUIT '+g.cuit : 'sin CUIT informado'}`}))); table(host.appendChild(h('div',{class:'tablewrap'})), [{key:'period', label:'Mes', render:r=>h('span',{class:'pill-month',text:lab(r.period)})}, {key:'date', label:'Fecha'}, {key:'rubro', label:'Rubro', render:r=>foldRubro(r.rubro)}, {key:'description', label:'Concepto', wrap:true, render:r=>h('span',{}, r.description, r.is_provision? [' ', chip('neutral','previsión')] : null, r.is_reversal? [' ', chip('neutral','reintegro')] : null, r.installment? [' ', chip('neutral','cuota '+r.installment)] : null)}, {key:'invoice', label:'Factura'}, {key:'total', label:'Importe', num:true, fmt:ars}], g.items, {sortKey:'period', sortDir:1}); }
@@ -547,7 +559,13 @@ function itemsDetail(host, g){ host.replaceChildren(); host.append(h('h3',{}, `F
   table($('tbl-deudores'), [{key:'uf', label:'UF', render:r=>h('span',{class:'pill-month',text:r.uf + (r.flag? ' '+r.flag : '')})}, {key:'piso', label:'Piso'}, {key:'deuda', label:'Deuda', num:true, fmt:ars}, {key:'intereses', label:'Intereses', num:true, fmt:ars}, {key:'charge', label:'Cuota mensual', num:true, fmt:ars}, {key:'months', label:'Equivale a', num:true, sortVal:r=>r.charge? r.deuda/r.charge : 0, render:r=>r.charge? nf1.format(r.deuda/r.charge)+' meses' : null}, {key:'unpaid', label:'Meses sin pagar', num:true, render:r=>h('span',{}, String(r.unpaid), r.partial? h('span',{class:'muted',text:` (+${r.partial} parcial)`}) : null)}], debtors, {sortKey:'deuda'});
   lineChart($('ch-deuda'), P, [{name:'Deuda total', color:'var(--s8)', values:totalDeuda}, {name:'Intereses acumulados', color:'var(--s2)', values:totalInt}], {aria:'Deuda total por mes'});
   // my unit
-  const mine = ufStats.find(u=>u.uf===MY_UF); if(mine){ $('mi-uf-hint').textContent = `${MY_UF} · piso ${mine.piso} · coeficiente ${nf2.format(mine.coef)} %`; lineChart($('ch-miuf'), P, [{name:'Total a pagar', color:'var(--s1)', values:mine.rows.map(r=>r? r.total : null)}, {name:'Expensas', color:'var(--s3)', values:mine.rows.map(r=>r? r.expensas : null)}, {name:'ABL', color:'var(--s4)', values:mine.rows.map(r=>r? r.abl + (r.abl_avaluo||0) : null)}], {aria:'Mi unidad'}); table($('tbl-miuf'), [{key:'period', label:'Mes', render:r=>h('span',{class:'pill-month',text:lab(r.period)})}, {key:'expensas', label:'Expensas', num:true, fmt:ars}, {key:'abl', label:'ABL', num:true, sortVal:r=>r.abl+(r.abl_avaluo||0), render:r=>ars(r.abl+(r.abl_avaluo||0))}, {key:'cargos', label:'Cargos part.', num:true, sortVal:r=>(r.cargos_part||0)+(r.gastos_part||0), render:r=>((r.cargos_part||0)+(r.gastos_part||0))? ars((r.cargos_part||0)+(r.gastos_part||0)) : null}, {key:'total', label:'Total', num:true, fmt:ars}, {key:'pago', label:'Pagado', num:true, fmt:ars}, {key:'st', label:'Estado', render:r=>{ const st = payStatus(r); return chip({paid:'good',partial:'warn',unpaid:'critical',none:'neutral'}[st], {paid:'pagó',partial:'parcial',unpaid:'no pagó',none:'sin saldo'}[st]); }}], mine.rows.map((r,i)=>Object.assign({period:P[i]}, r||{})), {sortKey:'period', sortDir:1}); }
+  const usel = $('uf-select'); UFS.forEach(uf=>usel.append(h('option',{value:uf, text:uf})));
+  function renderUnit(uf){ const mine = ufStats.find(u=>u.uf===uf); $('ch-miuf').replaceChildren(); $('tbl-miuf').replaceChildren(); if(!mine){ $('mi-uf-hint').textContent = 'elegí tu unidad para ver su historial'; return; }
+    $('mi-uf-hint').textContent = `${uf} · piso ${mine.piso} · coeficiente ${nf2.format(mine.coef)} %`;
+    lineChart($('ch-miuf'), P, [{name:'Total a pagar', color:'var(--s1)', values:mine.rows.map(r=>r? r.total : null)}, {name:'Expensas', color:'var(--s3)', values:mine.rows.map(r=>r? r.expensas : null)}, {name:'ABL', color:'var(--s4)', values:mine.rows.map(r=>r? r.abl + (r.abl_avaluo||0) : null)}], {aria:'Unidad '+uf});
+    table($('tbl-miuf'), [{key:'period', label:'Mes', render:r=>h('span',{class:'pill-month',text:lab(r.period)})}, {key:'expensas', label:'Expensas', num:true, fmt:ars}, {key:'dexp', label:'Δ', num:true, sortVal:r=>r._d, render:r=>r._d==null? null : pctCell(r._d)}, {key:'abl', label:'ABL', num:true, sortVal:r=>r.abl+(r.abl_avaluo||0), render:r=>ars(r.abl+(r.abl_avaluo||0))}, {key:'cargos', label:'Cargos part.', num:true, sortVal:r=>(r.cargos_part||0)+(r.gastos_part||0), render:r=>((r.cargos_part||0)+(r.gastos_part||0))? ars((r.cargos_part||0)+(r.gastos_part||0)) : null}, {key:'total', label:'Total', num:true, fmt:ars}, {key:'pago', label:'Pagado', num:true, fmt:ars}, {key:'st', label:'Estado', render:r=>{ const st = payStatus(r); return chip({paid:'good',partial:'warn',unpaid:'critical',none:'neutral'}[st], {paid:'pagó',partial:'parcial',unpaid:'no pagó',none:'sin saldo'}[st]); }}], mine.rows.map((r,i)=>Object.assign({period:P[i], _d: (i&&r&&mine.rows[i-1]&&mine.rows[i-1].expensas)? r.expensas/mine.rows[i-1].expensas-1 : null}, r||{})), {sortKey:'period', sortDir:1}); }
+  let savedUf = ''; try{ savedUf = localStorage.getItem('expensas-uf')||''; }catch(e){} if(!UFS.includes(savedUf)) savedUf=''; usel.value = savedUf; renderUnit(savedUf);
+  usel.addEventListener('change', ()=>{ try{ localStorage.setItem('expensas-uf', usel.value); }catch(e){} renderUnit(usel.value); });
   // legend + grid
   const lg = $('pay-legend'); [['paid','✓','pagó el saldo completo'],['partial','◐','pago parcial'],['unpaid','✕','no registró pago'],['none','·','sin saldo que pagar']].forEach(([c,g,t])=>{ const cell = h('span',{class:'cell '+c,text:g}); cell.style.cssText='display:inline-grid;place-items:center;width:22px;height:18px;border-radius:4px;font-weight:600;margin-right:6px;'; if(c==='none') cell.style.border='1px dashed var(--grid)'; lg.append(h('span',{}, cell, t)); });
   function renderGrid(filter){ const host = $('tbl-pagos'); host.replaceChildren(); const tbl = h('table',{class:'pay'}); const thead = h('thead'); const tr = h('tr', {}, h('th',{text:'UF'}), h('th',{text:'Piso'}), ...P.map(p=>h('th',{text:lab(p)})), h('th',{text:'Deuda hoy'}), h('th',{text:'Sin pagar'})); thead.append(tr); tbl.append(thead); const tb = h('tbody');
@@ -609,7 +627,6 @@ function itemsDetail(host, g){ host.replaceChildren(); host.append(h('h3',{}, `F
 })();
 
 // ---------- footer ----------
-$('foot').append(h('div',{}, `Fuente: ${(D.generated_from||[]).length} liquidaciones en PDF (Octopus) leídas con `, h('code',{text:'parse_expensas.py'}), `. Importes en pesos argentinos tal como figuran en cada liquidación; "neto" excluye previsiones y sus reintegros. Variaciones nominales, sin ajustar por inflación.`), h('div',{style:'margin-top:4px'}, 'Archivos: ', (D.generated_from||[]).join(' · ')));
 
 // ---------- tabs ----------
 const tabs = [...document.querySelectorAll('nav.tabs button')];

@@ -355,7 +355,7 @@ def parse_pdf(path):
         providers.append((parts[0].strip(), mm.group(2), ' - '.join(parts[1:]).strip(), (mm.group(3) or '').strip()))
     admin = re.search(r'NOMBRE:(.+?) DIRECCI', full_text)
     return {
-        'file': os.path.basename(path), 'period': period, 'month_name': month_name, 'year': year,
+        'period': period, 'month_name': month_name, 'year': year,
         'due_date': vto.group(1) if vto else None,
         'grand_total': grand, 'rubro_totals': rubro_totals, 'items': items,
         'units': units, 'unit_totals': unit_totals, 'financial': fin, 'patrimonial': pat,
@@ -414,7 +414,7 @@ def main():
         print(f"{d['period']} {d['month_name']:<11} items={len(d['items']):3d} units={len(d['units']):3d} total={gt:>15,.2f}  {status}")
         for p in d['validation']:
             print('   -', p)
-    payload = {'generated_from': sorted(os.path.basename(f) for f in glob.glob(os.path.join(folder, '*.pdf'))), 'months': docs}
+    payload = {'source_count': len(glob.glob(os.path.join(folder, '*.pdf'))), 'months': docs}
     with open(out, 'w', encoding='utf-8') as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=1)
     js_out = os.path.splitext(out)[0] + '.js'
