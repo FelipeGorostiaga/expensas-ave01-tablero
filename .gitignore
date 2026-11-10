@@ -8,3 +8,4 @@ data.json
 .refresh.lock/
 data.js
 .password
+bank_statements.json

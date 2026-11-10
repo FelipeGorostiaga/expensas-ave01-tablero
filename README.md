@@ -65,6 +65,15 @@ Los PDF y `data.js` (sin cifrar) nunca se suben.
 - **Activar Pages (una vez):** en GitHub, Settings → Pages → Source: *Deploy from a branch*,
   Branch: `main`, carpeta `/ (root)`. Cada push redespliega en un minuto.
 
+## Extractos bancarios
+
+La liquidación imprime un saldo contable que descuenta las previsiones no pagadas. Cuando la
+administración entrega un extracto bancario, cargá sus números en `bank_statements.json`
+(un objeto por mes: `period`, `opening`, `closing`, `min_balance`, `deposits`, `sircreb`,
+`sircreb_rate`, `ley25413`, `fees`, `iibb_payments`, `source`, `notes`) y regenerá con
+`FORCE=1 ./refresh.sh`. El tablero muestra el saldo real en Finanzas, Resumen, Novedades y
+Controles para esos meses. No hace falta tener el extracto de todos los meses.
+
 ## Qué calcula el tablero
 
 Arriba de todo hay dos selectores: el **mes** (por defecto, el último) y la **unidad**. El mes

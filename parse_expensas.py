@@ -414,7 +414,12 @@ def main():
         print(f"{d['period']} {d['month_name']:<11} items={len(d['items']):3d} units={len(d['units']):3d} total={gt:>15,.2f}  {status}")
         for p in d['validation']:
             print('   -', p)
-    payload = {'source_count': len(glob.glob(os.path.join(folder, '*.pdf'))), 'months': docs}
+    bank_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bank_statements.json')
+    bank = []
+    if os.path.exists(bank_file):
+        with open(bank_file, encoding='utf-8') as fh:
+            bank = json.load(fh)
+    payload = {'source_count': len(glob.glob(os.path.join(folder, '*.pdf'))), 'months': docs, 'bank_statements': bank}
     with open(out, 'w', encoding='utf-8') as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=1)
     js_out = os.path.splitext(out)[0] + '.js'
