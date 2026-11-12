@@ -420,10 +420,11 @@ def main():
         with open(bank_file, encoding='utf-8') as fh:
             bank = json.load(fh)
     payload = {'source_count': len(glob.glob(os.path.join(folder, '*.pdf'))), 'months': docs, 'bank_statements': bank}
-    with open(out, 'w', encoding='utf-8') as fh:
+    # newline='\n': en Windows evita CRLF, así data.enc sale idéntico byte a byte
+    with open(out, 'w', encoding='utf-8', newline='\n') as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=1)
     js_out = os.path.splitext(out)[0] + '.js'
-    with open(js_out, 'w', encoding='utf-8') as fh:
+    with open(js_out, 'w', encoding='utf-8', newline='\n') as fh:
         fh.write('window.EXPENSAS = ' + json.dumps(payload, ensure_ascii=False, separators=(',', ':')) + ';\n')
     print('wrote', out, 'and', js_out)
 
