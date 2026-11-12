@@ -31,6 +31,14 @@ Expensas/
     .password  bank_statements.json  data.json  data.js     # local only, see below
 ```
 
+### Other operating systems and PDF folder
+
+`refresh.sh` runs on macOS and on Windows (Git Bash). It finds the venv interpreter in `venv/bin` or `venv/Scripts`, and creates the venv itself if it is missing (`/usr/bin/python3`, else `uv`, else `python3`/`python`).
+
+If the PDFs are not in the parent folder of the repo, write their folder (one line) in a local file `.pdf-dir` next to `refresh.sh`, or set `PDFS_DIR`. `.pdf-dir` is in `.gitignore`. On Windows use a Git Bash path such as `/c/Users/<user>/Desktop/expensas-data`.
+
+The parser writes `data.json` and `data.js` with LF line endings on every system, so `data.enc` stays byte-identical across machines.
+
 ### Files that are NOT in git and must be copied by hand
 
 | File | Why it is not in git | Needed for |
