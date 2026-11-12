@@ -18,6 +18,7 @@
   --up:#e66767; --down:#3987e5; --neutral:#6b6a65;
   --good-bg:rgba(12,163,12,.16); --good-ink:#2fbf2f; --warn-bg:rgba(250,178,25,.15); --warn-ink:#fab219;
   --serious-bg:rgba(236,131,90,.16); --serious-ink:#ef9672; --bad-bg:rgba(208,59,59,.22); --bad-ink:#f07a7a;
+  --good-mark:#2fbf2f; --warn-mark:#fab219; --serious-mark:#ef9672; --bad-mark:#f07a7a;
   --sans:'Geist',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
   --mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
 }
@@ -30,6 +31,7 @@
     --up:#e34948; --down:#2a78d6; --neutral:#a9a7a0;
     --good-bg:rgba(12,163,12,.12); --good-ink:#006300; --warn-bg:rgba(250,178,25,.22); --warn-ink:#7f5300;
     --serious-bg:rgba(236,131,90,.18); --serious-ink:#9c3d17; --bad-bg:rgba(208,59,59,.13); --bad-ink:#b02a2a;
+    --good-mark:#0ca30c; --warn-mark:#fab219; --serious-mark:#ec835a; --bad-mark:#d03b3b;
   }
 }
 :root[data-theme="light"]{
@@ -40,6 +42,7 @@
   --up:#e34948; --down:#2a78d6; --neutral:#a9a7a0;
   --good-bg:rgba(12,163,12,.12); --good-ink:#006300; --warn-bg:rgba(250,178,25,.22); --warn-ink:#7f5300;
   --serious-bg:rgba(236,131,90,.18); --serious-ink:#9c3d17; --bad-bg:rgba(208,59,59,.13); --bad-ink:#b02a2a;
+  --good-mark:#0ca30c; --warn-mark:#fab219; --serious-mark:#ec835a; --bad-mark:#d03b3b;
 }
 
 /* ---------- base ---------- */
@@ -1110,7 +1113,7 @@ function controlCard(c){
 TABS.revisar = function(){
   const rank = {critical:0, serious:1, warn:2, neutral:3, good:4}; const sorted = CONTROLS.slice().sort((a,b)=>rank[a.kind]-rank[b.kind]);
   const bad = sorted.filter(c=>rank[c.kind]<=2), info = sorted.filter(c=>c.kind==='neutral'), ok = sorted.filter(c=>c.kind==='good');
-  const segCol = {critical:'var(--bad-ink)', serious:'var(--serious-ink)', warn:'var(--warn-ink)', neutral:'var(--neutral)', good:'var(--good-ink)'};
+  const segCol = {critical:'var(--bad-mark)', serious:'var(--serious-mark)', warn:'var(--warn-mark)', neutral:'var(--neutral)', good:'var(--good-mark)'};
   const copyBtn = h('button',{class:'fchip', style:'height:44px', onclick:async()=>{ const txt = QUESTIONS.map((q,i)=>`${i+1}. ${q.t}. ${q.d}`).join('\n\n'); let done = false; try{ await navigator.clipboard.writeText(txt); done = true; }catch(e){ try{ const ta = h('textarea',{style:'position:fixed;opacity:0'}); ta.value = txt; document.body.append(ta); ta.select(); done = document.execCommand('copy'); ta.remove(); }catch(e2){} } copyBtn.replaceChildren(ic(done?'check':'copy'), done? 'Preguntas copiadas' : 'No se pudo copiar'); }}, ic('copy'), 'Copiar las preguntas');
   const head = h('div',{class:'hero', style:'flex:none'}, h('div',{class:'eyebrow', text:`${CONTROLS.length} controles automáticos sobre los ${N} meses`}),
     h('h2',{class:'disp', style:'font-size:clamp(28px,4.4vw,44px)', text:`${bad.length} para revisar, ${ok.length} en orden`}),
