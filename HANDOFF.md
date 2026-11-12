@@ -122,12 +122,18 @@ All 9 months validate against printed rubro totals, grand totals and the prorrat
 
 ## 7. Dashboard structure (`index.html`, one file)
 
-- Tabs: Resumen, Novedades, Precios, Proveedores, Unidades y morosidad, Finanzas, Controles, Detalle. Hash deep links.
-- Global bar: month selector `#g-mes` and unit selector `#g-uf`. State lives in `MI` (month index) and `UF` (unit); `setMonth(i)`, `setUnit(uf)`, `renderMonth()` re-render the month-dependent views.
+Redesigned in November 2026 (dark by default, Geist, six tabs). Still one file, no build step.
+
+- Shell: header (unit picker pill and theme toggle), month selector (trend line on desktop, stepper under 720px), tabs, active section in `#view`, footer.
+- Tabs and their question: Resumen (¿Qué pasó este mes?), Mi unidad (¿Cuánto pago yo?), Gastos (¿En qué se gasta?), Morosidad (¿Quién no paga?), Caja (¿Hay plata?), Revisar (¿Qué preguntar?). Hash deep links (`#gastos`); the old hashes (`#precios`, `#finanzas`, ...) map to the new tabs.
+- State: `MI` (month index), `UF` (unit, empty by default), `TAB`, and `S` (per-section filters). `setMonth(i)`, `setUnit(uf)` and `go(tab, params)` re-render. Each tab registers a function in `TABS` that returns its nodes; `render()` rebuilds the shell and the active tab. Every month renders every block, including the first one (it has no previous month, and the comparison blocks say so).
+- The analytics block (provider matrix, units, provisions, duplicates, jumps) is the same logic as before the redesign. `CONTROLS` and `QUESTIONS` feed Revisar, the tab badge and the Resumen alerts (`alertsAt(mi)`).
+- `more(id, ...)` is a collapsible section. It keeps every full table of the old version reachable inside the new tabs; do not remove those without asking Felipe.
+- Privacy: no unit is selected by default and none is named in the code. The design mockup files name Felipe's unit: never copy them into the repo.
 - Password gate `#gate`: heading "Alley - Fideicomiso AVE 01", text "Los datos del tablero están encriptados.", show/hide toggle with a crossed eye at rest and a plain eye when toggled, no blue container on the icon.
-- Hand-written SVG charts (`stackedBars`, `lineChart`, `hBars`, `spark`), sortable `table()` helper, light/dark CSS tokens, IBM Plex Sans/Mono, custom select chevron (data URI).
+- Charts are plain HTML/CSS (`colChart`, waterfall rows, bars) plus small SVG paths for lines and sparklines. Sortable `table()` helper. CSS tokens on `:root` (dark), overridden for light by `prefers-color-scheme` or by `data-theme` (the header button, stored in `expensas-tema`). Geist and Geist Mono. Rubro colours are fixed per rubro (`--c1` to `--c6`, `--cx`), never by rank.
 - Keep `̀-ͯ` escaped in the accent-stripping regex; writing the literal characters broke it once. Keep `<meta charset="utf-8">`.
-- Comparisons are month-over-month, never against February. No footer with file names.
+- Comparisons are month-over-month (plus "vs. 3 months ago" in the heroes), never against February. The one first-to-last comparison is "Cuánto subió cada uno" in Gastos, which replaced the old "Var. período" column. No footer with file names.
 
 ## 8. Decisions and preferences already settled
 
