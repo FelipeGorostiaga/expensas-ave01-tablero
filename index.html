@@ -232,6 +232,16 @@ button.alert:hover{border-color:var(--ink-2)}
 .nlist>div{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}
 .nlist>div>*{min-width:0}
 
+/* mapa de pagos */
+.hm td{padding:3px;text-align:center}
+.hm td:first-child{text-align:left;padding:3px 8px}
+.hm td.r{text-align:right;padding:3px 8px}
+.hc{display:grid;place-items:center;width:100%;min-width:34px;height:30px;border-radius:6px;flex:none}
+.hc.paid{background:var(--good-bg);color:var(--good-ink)} .hc.partial{background:var(--warn-bg);color:var(--warn-ink)} .hc.unpaid{background:var(--bad-bg);color:var(--bad-ink)} .hc.none{border:1px dashed var(--line-2)}
+.hm td.hsel,.hm th.hsel{box-shadow:inset 2px 0 0 var(--ink),inset -2px 0 0 var(--ink);color:var(--ink)}
+.hm thead th.hsel{box-shadow:inset 2px 0 0 var(--ink),inset -2px 0 0 var(--ink),inset 0 2px 0 var(--ink)}
+.hm tbody tr:last-child td.hsel{box-shadow:inset 2px 0 0 var(--ink),inset -2px 0 0 var(--ink),inset 0 -2px 0 var(--ink)}
+
 /* tooltip */
 .tip{position:fixed;z-index:50;pointer-events:none;max-width:320px;padding:10px 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line-2);font-size:12px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
 .tip .t{font-weight:600;margin-bottom:4px}
@@ -715,6 +725,247 @@ TABS.resumen = function(){
       {key:'deuda', label:'Deuda propietarios', num:true, fmt:fm}, {key:'dDeuda', label:'Var.', num:true, render:dc('dDeuda')}, {key:'cobro', label:'Cobranza', num:true, render:r=>r.cobro==null? null : pc(r.cobro,false)},
       {key:'saldo', label:'Saldo de caja', num:true, render:r=>h('span',{style:r.saldo<0?'color:var(--bad-ink)':''}, fm(r.saldo))}], mesRows, {sortKey:'period', sortDir:1, rowClass:r=>r.i===mi?'sel':'', onSelect:r=>setMonth(r.i)})));
   return [h('div',{class:'row stretch'}, hero, unitCard(mi)), kpis, h('div',{class:'row'}, waterfallCard(mi), alerts), where, trend];
+};
+
+// ================= GASTOS =================
+const normTxt = t => (t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const sentence = t => t.charAt(0) + t.slice(1).toLowerCase();
+const ALL_ITEMS = []; M.forEach((m,i)=>m.items.forEach(it=>ALL_ITEMS.push(Object.assign({period:m.period, mi:i}, it))));
+// etiquetas de cada ítem: previsión, reintegro, cuota, gasto puntual, nuevo
+function itemTags(it){ const g = groups[it.group]; const t = []; if(it.is_provision) t.push(tag('previsión')); if(it.is_reversal) t.push(tag('reintegro')); if(it.installment) t.push(tag('cuota '+it.installment)); if(isNetItem(it) && g){ if(g.provider && g.first===it.mi && it.mi>0) t.push(tag('nuevo')); else if(it.total>300000 && !ADMIN_GROUPS.includes(it.group) && (g.active<=2 || ONEOFF.includes(it.rubro))) t.push(tag('gasto puntual')); } return t; }
+function provFlags(g){ const f = []; if(noCuit.includes(g)) f.push({c:'warn', t:'sin CUIT'}); if(stopped.includes(g)) f.push({c:'serious', t:`dejó de facturar en ${labS(P[g.last])}`}); if(g.maxJump!=null && g.maxJump>0.25 && g.total>1e6) f.push({c:'serious', t:`salto ${pc(g.maxJump)} en ${labS(P[g.jumpAt])}`}); if(started.includes(g)) f.push({c:'', t:`nuevo desde ${labS(P[g.first])}`}); if(ADMIN_GROUPS.includes(g.name)) f.push({c:'', t:'administración'}); if(g.name==='AGIP INM/ABL') f.push({c:'', t:'impuesto'}); if(!g.provider) f.push({c:'', t:'sin proveedor'}); return f; }
+const hasAlert = g => provFlags(g).some(f=>f.c==='warn'||f.c==='serious');
+// variación del período, salteando primeros meses claramente parciales o duplicados
+function priceTrend(g){ const nz = g.values.map((v,i)=>({v,i})).filter(x=>x.v>0); if(nz.length<2) return null; const sorted = nz.map(x=>x.v).sort((a,b)=>a-b); const med = sorted[Math.floor(sorted.length/2)]; const ok = x => x.v>=med*0.5 && x.v<=med*2; const a = nz.find(ok) || nz[0]; const b = nz[nz.length-1]; if(a.i>=b.i) return null; return {a, b, pct:b.v/a.v-1, skipped:a.i!==nz[0].i}; }
+
+function explorerCard(){
+  const iso = S.rubro? rubroSeries.find(r=>r.k===S.rubro) : null; const series = iso? [iso] : rubroSeries; const vals = i => iso? iso.values[i] : totals[i];
+  const readout = h('div',{style:'flex:1 1 240px;min-width:0;display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:12px;background:var(--surface-2)', 'aria-live':'polite'});
+  const fill = i => { const prev = i>0? vals(i-1) : null; readout.replaceChildren(
+    h('div',{class:'muted', style:'font-size:12px', text: cap(labL(P[i])) + (i===MI? '' : ' · mes bajo el cursor')}),
+    h('div',{class:'disp num', style:'font-size:29px', text:fm(vals(i))}),
+    h('div',{style:'font-size:13px'}, i>0? dnode(vals(i), prev, true, vsPrev(i)) : h('span',{class:'muted', text:'primer mes del período'}), iso? h('span',{class:'muted', text:` · ${pc(vals(i)/totals[i],false)} del gasto del mes`}) : null),
+    h('div',{style:'display:flex;flex-direction:column;gap:6px;font-size:13px'}, iso
+      ? [h('div',{class:'muted', style:'font-size:12px', text:'Quién cobró en este rubro'}), ...G.map(g=>({g, v:sum(g.items.filter(it=>it.mi===i && isNetItem(it) && foldRubro(it.rubro)===iso.name).map(it=>it.total))})).filter(x=>Math.abs(x.v)>0.5).sort((a,b)=>b.v-a.v).slice(0,7).map(x=>h('div',{style:'display:flex;justify-content:space-between;gap:10px'}, h('span',{class:'ell ink2', text:x.g.name}), h('span',{class:'num b', text:fm(x.v)})))]
+      : rubroSeries.filter(r=>r.values[i]>0).map(r=>h('div',{style:'display:flex;justify-content:space-between;gap:10px;align-items:center'}, h('span',{class:'ell ink2', style:'display:inline-flex;align-items:center;gap:8px'}, sw(r.color), r.name), h('span',{class:'num b', text:fm(r.values[i])}))))); };
+  fill(MI);
+  const chips = h('div',{class:'filters', role:'group', 'aria-label':'Filtrar por rubro'}, h('button',{class:'fchip', 'aria-pressed': !iso? 'true':'false', onclick:()=>{ S.rubro = null; renderView(); }}, 'Todos los rubros'), RUBROS.map(r=>h('button',{class:'fchip', 'aria-pressed': S.rubro===r.k? 'true':'false', onclick:()=>{ S.rubro = S.rubro===r.k? null : r.k; renderView(); }}, h('span',{class:'sw', style:'background:'+r.c}), r.n)));
+  const rub = {}; M.forEach((m,i)=>m.rubro_totals.forEach(rt=>{ (rub[rt.rubro]||(rub[rt.rubro]={name:rt.rubro, values:Array(N).fill(0)})).values[i] += rt.total; }));
+  return h('section',{class:'card'}, cardHead('Gasto mensual por rubro', iso? `${iso.name}: ${iso.note}. Pasá el cursor por un mes para ver su detalle; tocalo para elegirlo.` : 'Elegí un rubro para aislarlo. Pasá el cursor por un mes para ver su detalle; tocalo para elegirlo.'), chips,
+    h('div',{class:'row'}, h('div',{style:'flex:3 1 520px;min-width:0;display:flex;flex-direction:column;gap:14px'}, colChart({series, labelAll:!!iso, onHover:i=>fill(i==null? MI : i)}), iso? null : legend(RUBROS)), readout),
+    more('rubros-orig', 'Totales por rubro, tal como los imprime la liquidación', 'todos los meses', ()=>{ const rows = Object.values(rub).map(r=>Object.assign(r, metrics(r))); return table([{key:'name', label:'Rubro', render:r=>sentence(r.name)}, ...P.map((p,i)=>({key:'m'+i, label:lab(p), num:true, sortVal:r=>r.values[i], cls:i===MI?'selc':'', render:r=>r.values[i]? fm(r.values[i]) : null})), {key:'total', label:'Total', num:true, fmt:fm}, {key:'dm', label:`Var. ${labS(P[MI])}`, num:true, sortVal:r=>MI? r.values[MI]-r.values[MI-1] : 0, render:r=>{ if(!MI) return null; const v = chg(r.values[MI], r.values[MI-1]); return v==null? null : h('span',{style:'color:'+dcol(v), text:pc(v)}); }}, {key:'change', label:'Var. período', num:true, render:r=>r.change==null? null : h('span',{style:'color:'+dcol(r.change), text:pc(r.change)})}], rows, {sortKey:'total', footer:Object.assign({name:'Total general', total:fm(grandTotal), change:pc(chg(totals[N-1],totals[0])), dm: MI? pc(chg(totals[MI],totals[MI-1])) : ''}, Object.fromEntries(P.map((p,i)=>['m'+i, fm(totals[i])])))}); }));
+}
+
+function risesCard(){
+  const building = chg(totals[N-1], totals[0]);
+  const rows = G.filter(g=>g.active>=6 && g.total/g.active>=150000).map(g=>({g, t:priceTrend(g)})).filter(x=>x.t).map(x=>({name:x.g.name, sub:[...x.g.rubros].join(', '), values:x.g.values.map(v=>v>0? v : null), a:x.t.a, b:x.t.b, pct:x.t.pct, skipped:x.t.skipped, g:x.g}));
+  rows.push({name:'Gasto total del consorcio', sub:'referencia', values:totals, a:{i:0, v:totals[0]}, b:{i:N-1, v:totals[N-1]}, pct:building, ref:true});
+  rows.sort((x,y)=>y.pct-x.pct);
+  const LO = -0.2, HI = 2, X = v => (Math.max(LO, Math.min(HI, v))-LO)/(HI-LO)*100; const zero = X(0);
+  const grid = 'grid-template-columns:minmax(0,2fr) 110px minmax(0,1.7fr) minmax(0,1.5fr) 84px';
+  const col = r => r.ref? 'var(--ink)' : (r.pct<0? 'var(--down)' : (r.pct>building? 'var(--up)' : 'var(--neutral)'));
+  const body = h('div',{style:'display:flex;flex-direction:column;gap:2px;min-width:760px'},
+    h('div',{class:'prow muted', style:grid+';min-height:0;padding:0 8px 8px;font-size:12px;border-bottom:1px solid var(--line);border-radius:0'}, h('span',{text:'Proveedor'}), h('span',{text:'Evolución'}), h('span',{text:'De cuánto a cuánto'}), h('span',{text:'Variación (de −20 % a +200 %)'}), h('span',{style:'text-align:right', text:'%'})),
+    rows.map(r=>{ const sp = sparkPath(r.values, 100, 26, 3); const svg = s('svg',{viewBox:'0 0 100 26', preserveAspectRatio:'none', width:'100%', height:'26', 'aria-hidden':'true'}); s('path',{class:'ln', d:sp.d, style:'stroke:var(--ink-2)'}, svg);
+      const cells = [h('span',{style:'display:flex;flex-direction:column;min-width:0'}, h('span',{class:'ell b', text:r.name}), h('span',{class:'ell muted', style:'font-size:12px', text:r.sub})), svg,
+        h('span',{class:'num ink2 ell', style:'font-size:13px', title:r.skipped? 'Se saltearon los primeros meses porque el importe era parcial o estaba duplicado.' : ''}, `${lab(P[r.a.i])} ${fm(r.a.v)} → ${lab(P[r.b.i])} ${fm(r.b.v)}`, r.skipped? ' *' : ''),
+        h('span',{class:'bar-track', style:'height:12px'}, h('span',{class:'zero', style:`left:${zero}%;top:-6px;bottom:-6px`}), h('span',{class:'bar', style:`left:${Math.min(zero, X(r.pct))}%;width:${Math.abs(X(r.pct)-zero)}%;background:${col(r)}`})),
+        h('span',{class:'num b', style:'text-align:right', text:pc(r.pct)})];
+      return r.ref? h('div',{class:'prow sel', style:grid}, cells) : h('button',{class:'prow', style:grid, 'aria-label':`${r.name}: ${pc(r.pct)}. Ver proveedor`, onclick:()=>{ S.prov = r.g.name; S.provFilter = 'all'; renderView(); const el = $('quien-cobra'); if(el) el.scrollIntoView({block:'start'}); }}, cells); }));
+  return h('section',{class:'card'}, cardHead('Cuánto subió cada uno', `Proveedores que facturaron en al menos 6 meses, con un promedio de $ 150 mil o más. Compara su primer mes normal con el último. El consorcio en total subió ${pc(building)} entre ${labM(P[0])} y ${labM(P[N-1])}.`),
+    h('div',{class:'scroll-x'}, body),
+    h('div',{class:'legend', style:'font-size:12px'}, h('span',{}, sw('var(--up)'), 'Subió más que el total del consorcio'), h('span',{}, sw('var(--neutral)'), 'Subió menos'), h('span',{}, sw('var(--down)'), 'Bajó'), rows.some(r=>r.skipped)? h('span',{class:'muted', text:'* se saltearon primeros meses parciales o duplicados'}) : null),
+    more('matriz', 'Todos los proveedores y conceptos, mes a mes', 'importe neto, variación del mes, del período y mayor salto', ()=>{ const mi = MI, pi = mi-1; return [h('p',{class:'note', text:'Importe neto facturado en cada mes, sin previsiones ni reintegros. Tocá una columna para ordenar y una fila para ver al proveedor.'}), table([
+      {key:'name', label:'Proveedor / concepto', render:r=>[r.name, r.provider? null : h('span',{class:'muted',text:' (sin proveedor)'})]}, {key:'rubro', label:'Rubro', sortVal:r=>[...r.rubros].join(', '), render:r=>[...r.rubros].join(', ')},
+      ...P.map((p,i)=>({key:'m'+i, label:lab(p), num:true, sortVal:r=>r.values[i], cls:i===mi?'selc':'', render:r=>r.values[i]? fm(r.values[i]) : null})),
+      {key:'dm', label:`Var. ${labS(P[mi])}`, num:true, sortVal:r=>mi? r.values[mi]-r.values[pi] : 0, render:r=>{ if(!mi) return null; const a = r.values[pi], b = r.values[mi]; if(a===b) return null; return [h('span',{style:'font-weight:600;color:'+(b>a?'var(--bad-ink)':'var(--good-ink)'), text:sm(b-a)}), h('span',{class:'muted', text: a>0&&b>0? ' '+pc(b/a-1) : (b>a? ' nuevo' : ' no facturó')})]; }},
+      {key:'total', label:'Total', num:true, fmt:fm}, {key:'change', label:'Var. período', num:true, render:r=>r.change==null? null : h('span',{style:'color:'+dcol(r.change), text:pc(r.change)})},
+      {key:'maxJump', label:'Mayor salto', num:true, render:r=>r.maxJump==null? null : [h('span',{style:'color:'+dcol(r.maxJump), text:pc(r.maxJump)}), h('span',{class:'muted', text:' '+labS(P[r.jumpAt])})]}],
+      G, {sortKey: mi? 'dm' : 'total', maxHeight:520, onSelect:g=>{ S.prov = g.name; S.provFilter = 'all'; renderView(); const el = $('quien-cobra'); if(el) el.scrollIntoView({block:'start'}); }})]; }));
+}
+
+function provDetail(g){
+  const flags = provFlags(g); const obs = [];
+  if(g.change!=null && g.active>=3) obs.push(`Entre ${labM(P[g.first])} y ${labM(P[g.last])} pasó de ${fm(g.firstVal)} a ${fm(g.lastVal)} (${pc(g.change)}).`);
+  if(g.maxJump!=null && g.maxJump>0.25) obs.push(`Su mayor salto fue de ${pc(g.maxJump)} en ${labM(P[g.jumpAt])}.`);
+  if(stopped.includes(g)) obs.push(`No factura desde ${labM(P[g.last])}; promediaba ${fm(g.total/g.active)} por mes.`);
+  if(started.includes(g)) obs.push(`Aparece por primera vez en ${labM(P[g.first])}.`);
+  if(noCuit.includes(g)) obs.push('La liquidación no informa su CUIT: conviene pedir el comprobante.');
+  if(!g.provider) obs.push('Cargos registrados solo con fecha y descripción, sin razón social.');
+  const items = g.items.filter(it=>it.mi===MI);
+  const stat = (k, v) => h('div',{}, h('span',{class:'k', text:k}), h('span',{class:'v num', text:v}));
+  return [h('div',{class:'eyebrow', text:[...g.rubros].join(' · ')}), h('h3',{style:'font-size:18px', text:g.name}),
+    g.cuit? h('div',{class:'mono ink2', text:'CUIT '+g.cuit}) : h('div',{style:'font-size:13px;font-weight:600;color:'+(g.provider && g.name!=='AGIP INM/ABL'? 'var(--warn-ink)' : 'var(--muted)'), text: g.provider? 'Sin CUIT informado' : 'Sin proveedor identificado'}),
+    flags.length? h('div',{class:'chips'}, flags.map(f=>st(f.c, f.t))) : null,
+    h('div',{class:'kv', style:'grid-template-columns:1fr 1fr'}, stat('Total del período', fm(g.total)), stat('Promedio mensual', g.active? fm(g.total/g.active) : '—'), stat('Meses con facturas', `${g.active} de ${N}`), stat('Facturas', String(g.items.length))),
+    h('div',{}, miniBars(g.values.map(v=>v>0? v : null), MI, 56), h('div',{class:'cc-x', style:'gap:4px;margin-top:4px', 'aria-hidden':'true'}, P.map((p,i)=>h('span',{class:i===MI?'on':'', style:'font-size:11px', text:lab(p)})))),
+    obs.length? h('p',{class:'sub', text:obs.join(' ')}) : null,
+    h('div',{style:'display:flex;flex-direction:column;gap:8px'}, h('div',{class:'muted', style:'font-size:12px', text:`En ${labL(P[MI])}`}),
+      items.length? items.map(it=>h('div',{style:'display:flex;justify-content:space-between;gap:12px;font-size:13px;padding-bottom:8px;border-bottom:1px solid var(--line)'}, h('span',{style:'min-width:0;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline'}, h('span',{class:'ink2', text:it.description}), itemTags(it), it.invoice? h('span',{class:'mono muted', text:'FC '+it.invoice}) : null), h('span',{class:'num b', style:'white-space:nowrap', text:fp(it.total)}))) : h('div',{class:'muted', style:'font-size:13px', text:'No facturó este mes.'})),
+    more('prov-all:'+g.name, 'Todas sus facturas del período', `${g.items.length} ítems`, ()=>invoiceTable(g.items, {showMonth:true, noProv:true, maxHeight:360}))];
+}
+function providersCard(){
+  const withProv = G.filter(g=>g.provider); const top5 = sum(G.slice(0,5).map(g=>g.total));
+  const stat = (k, v, sub) => h('div',{style:'flex:1 1 180px;min-width:0;display:flex;flex-direction:column;gap:4px'}, h('span',{class:'muted', style:'font-size:12px', text:k}), h('span',{class:'disp num', style:'font-size:24px', text:v}), h('span',{class:'muted', style:'font-size:12px', text:sub}));
+  const filt = {all:G, nocuit:noCuit, alerts:G.filter(hasAlert)}; const list = filt[S.provFilter] || G;
+  let cur = list.find(g=>g.name===S.prov) || list[0];
+  const detail = h('div',{style:'flex:1 1 340px;min-width:0;display:flex;flex-direction:column;gap:14px;padding:18px;border-radius:12px;background:var(--bg);border:1px solid var(--line)', 'aria-live':'polite'});
+  const rowsEl = new Map(); const mxTot = Math.max(...list.map(g=>g.total), 1);
+  const pick = g => { cur = g; S.prov = g.name; rowsEl.forEach((el,k)=>{ el.classList.toggle('sel', k===g.name); el.setAttribute('aria-pressed', k===g.name? 'true':'false'); }); detail.replaceChildren(...provDetail(g).filter(Boolean)); };
+  const grid = 'grid-template-columns:minmax(0,1fr) 84px 110px';
+  const listEl = h('div',{style:'flex:999 1 540px;min-width:0;display:flex;flex-direction:column;max-height:640px;overflow:auto;scrollbar-width:thin'}, list.map(g=>{ const fl = provFlags(g); const el = h('button',{class:'prow', style:grid, 'aria-pressed':'false', onclick:()=>pick(g)},
+    h('span',{style:'display:flex;flex-direction:column;gap:2px;min-width:0'}, h('span',{style:'display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;min-width:0'}, h('span',{class:'ell b', text:g.name}), fl.slice(0,2).map(f=>st(f.c, f.t))), h('span',{class:'ell muted', style:'font-size:12px'}, g.cuit? h('span',{class:'mono', text:g.cuit}) : (g.provider? 'sin CUIT' : 'sin proveedor'), ' · ', [...g.rubros].join(', '))),
+    h('span',{class:'num b', style:'text-align:right', text:fm(g.total)}),
+    h('span',{style:'display:flex;flex-direction:column;gap:4px'}, h('span',{class:'num muted', style:'font-size:12px;text-align:right', text:pc(g.total/grandTotal,false)}), h('span',{class:'thin'}, h('i',{style:`width:${Math.max(1,g.total/mxTot*100)}%;background:var(--ink-2)`})))); rowsEl.set(g.name, el); return el; }),
+    list.length? null : h('div',{class:'empty', text:'Ningún proveedor en este filtro.'}));
+  if(cur) pick(cur);
+  const chip = (k, l, n) => h('button',{class:'fchip', 'aria-pressed': S.provFilter===k? 'true':'false', onclick:()=>{ S.provFilter = k; S.prov = null; renderView(); const el = $('quien-cobra'); if(el) el.scrollIntoView({block:'start'}); }}, l, h('span',{class:'num', style:'opacity:.7', text:String(n)}));
+  return h('section',{class:'card', id:'quien-cobra'}, cardHead('Quién cobra', 'Todos los proveedores y conceptos del período, con su CUIT cuando la liquidación lo informa. Los que no tienen CUIT merecen una pregunta a la administración: ¿están facturando en regla?'),
+    h('div',{class:'row', style:'gap:14px 24px;padding:4px 0'}, stat('Proveedores distintos', String(withProv.length), `${G.length-withProv.length} conceptos sin proveedor identificado`), stat('Facturado sin CUIT', fm(sum(noCuit.map(g=>g.total))), `${noCuit.length} proveedores (sin contar AGIP)`), stat('Compras sin proveedor', fm(sum(G.filter(g=>g.name==='Compras varias (sin proveedor)').map(g=>g.total))), 'ferretería, pinturería e insumos sin razón social'), stat('Concentración', pc(top5/grandTotal,false), 'del gasto va a los 5 mayores')),
+    h('div',{class:'filters', role:'group', 'aria-label':'Filtrar proveedores'}, chip('all','Todos',G.length), chip('nocuit','Sin CUIT',noCuit.length), chip('alerts','Con alertas',filt.alerts.length)),
+    h('div',{class:'row'}, listEl, detail));
+}
+
+function invoiceTable(rows, o={}){
+  return table([
+    o.showMonth? {key:'period', label:'Mes', render:r=>cap(labS(r.period))+' '+r.period.slice(2,4)} : null,
+    {key:'date', label:'Fecha', sortVal:r=>r.period+(r.date||'').split('/').reverse().join(''), render:r=>(r.date||'').slice(0,5)},
+    {key:'rubro', label:'Rubro', sortVal:r=>foldRubro(r.rubro), render:r=>{ const f = foldRubro(r.rubro); return [h('span',{style:'display:inline-flex;align-items:center;gap:6px'}, sw(rubroColor(f)), f), f==='Otros'? h('div',{class:'muted', style:'font-size:11px', text:sentence(r.rubro)}) : null]; }},
+    o.noProv? null : {key:'group', label:'Proveedor', render:r=>[h('div',{class:'b', text:r.group}), r.cuit? h('div',{class:'mono muted', text:r.cuit}) : null]},
+    {key:'description', label:'Concepto', wrap:true, render:r=>h('span',{style:'display:inline-flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline'}, r.description, itemTags(r))},
+    {key:'invoice', label:'Factura', render:r=>r.invoice? h('span',{class:'mono', text:r.invoice}) : null},
+    {key:'expensas', label:'Expensas', num:true, render:r=>r.expensas? fp(r.expensas) : null}, {key:'abl', label:'ABL', num:true, render:r=>r.abl? fp(r.abl) : null},
+    {key:'total', label:'Importe', num:true, render:r=>h('span',{class:'b', text:fp(r.total)})}].filter(Boolean), rows, {sortKey: o.showMonth? 'date' : 'total', sortDir: o.showMonth? 1 : -1, maxHeight:o.maxHeight||640, empty:'Ningún ítem coincide con la búsqueda.'});
+}
+function invoicesCard(){
+  const host = h('div'); const count = h('span',{class:'muted num', style:'font-size:13px'});
+  const draw = () => { const q = normTxt(S.q.trim()); const rows = ALL_ITEMS.filter(it=>(S.invAll || it.mi===MI) && (!S.invRubro || foldRubro(it.rubro)===S.invRubro) && (!q || normTxt(it.raw+' '+(it.group||'')+' '+(it.cuit||'')+' '+(it.invoice||'')).includes(q))); count.textContent = `${rows.length} ítems · neto ${fm(sum(rows.map(r=>r.total)))}`; host.replaceChildren(invoiceTable(rows, {showMonth:S.invAll})); };
+  const inp = h('input',{type:'search', placeholder:'Buscar proveedor, concepto, CUIT o factura', 'aria-label':'Buscar en las facturas', value:S.q, oninput:e=>{ S.q = e.target.value; draw(); }});
+  const rchip = (k, l, c) => h('button',{class:'fchip', 'aria-pressed': S.invRubro===k? 'true':'false', onclick:()=>{ S.invRubro = S.invRubro===k? '' : k; renderView(); const el = $('facturas'); if(el) el.scrollIntoView({block:'start'}); }}, c? h('span',{class:'sw', style:'background:'+c}) : null, l);
+  draw();
+  return h('section',{class:'card', id:'facturas'}, cardHead(S.invAll? 'Facturas de todo el período' : `Facturas de ${labL(P[MI])}`, 'Cada ítem tal como figura en la liquidación. Tocá un encabezado para ordenar.'),
+    h('div',{class:'filters'}, h('label',{class:'search'}, ic('search'), inp), h('button',{class:'fchip', 'aria-pressed': S.invAll? 'true':'false', onclick:()=>{ S.invAll = !S.invAll; renderView(); const el = $('facturas'); if(el) el.scrollIntoView({block:'start'}); }}, 'Todos los meses'), count),
+    h('div',{class:'filters', role:'group', 'aria-label':'Filtrar facturas por rubro'}, h('button',{class:'fchip', 'aria-pressed': !S.invRubro? 'true':'false', onclick:()=>{ S.invRubro = ''; renderView(); const el = $('facturas'); if(el) el.scrollIntoView({block:'start'}); }}, 'Todos'), RUBROS.map(r=>rchip(r.n, r.n, r.c))),
+    host);
+}
+TABS.gastos = () => [explorerCard(), risesCard(), providersCard(), invoicesCard()];
+
+// ================= MI UNIDAD =================
+const ablOf = r => r.abl + (r.abl_avaluo||0), cargosOf = r => (r.cargos_part||0) + (r.gastos_part||0);
+const ST_LABEL = {paid:['good','pagó'], partial:['warn','parcial'], unpaid:['bad','no pagó'], none:['','sin saldo']};
+// desglose de la cuota del mes por concepto: gasto del consorcio × coeficiente de la unidad
+function unitBreakdown(u, mi){
+  const c = u.coef/100, cAbl = (u.coef_abl||u.coef)/100; const byG = {}; let pv = 0;
+  M[mi].items.forEach(it=>{ const share = it.expensas*c + it.abl*cAbl; if(it.is_provision||it.is_reversal){ pv += share; return; } const k = it.group; byG[k] = byG[k] || {name:k, rubro:foldRubro(it.rubro), amount:0, cons:0}; byG[k].amount += share; byG[k].cons += it.total; });
+  const rows = Object.values(byG).filter(r=>Math.abs(r.amount)>0.5).sort((a,b)=>b.amount-a.amount);
+  const extra = [];
+  if(Math.abs(pv)>0.5) extra.push({name:'Previsiones del mes (neto de reintegros)', rubro:'Previsiones', amount:pv, cons:sum(M[mi].items.filter(it=>it.is_provision||it.is_reversal).map(it=>it.total))});
+  if(cargosOf(u)>0.5) extra.push({name:'Cargos particulares de la unidad', rubro:'Cargos particulares', amount:cargosOf(u), cons:null});
+  if(u.extraordinarios>0.5) extra.push({name:'Expensas extraordinarias', rubro:'Extraordinarias', amount:u.extraordinarios, cons:null});
+  return {rows, extra, cuota:monthlyCharge(u)};
+}
+TABS.unidad = function(){
+  const us = ufOf(UF), mi = MI;
+  if(!us) return [h('section',{class:'card', style:'align-items:flex-start;gap:14px;padding:32px'}, h('h2',{text:'¿Cuánto pago yo?'}), h('p',{class:'sub', text:'Elegí tu unidad para ver tu cuota de cada mes, cómo se compone y a qué proveedores les pagás. La elección queda guardada solo en este navegador: nadie más la ve.'}), h('button',{class:'fchip', 'aria-pressed':'true', style:'height:44px', onclick:openUnitDialog}, 'Elegir mi unidad'))];
+  const u = us.rows[mi], pu = mi>0? us.rows[mi-1] : null; const out = [];
+  const series = [{name:'Expensas', color:'var(--c1)', values:us.rows.map(r=>r? r.expensas : 0)}, {name:'ABL', color:'var(--c2)', values:us.rows.map(r=>r? ablOf(r) : 0)}, {name:'Cargos particulares', color:'var(--c4)', values:us.rows.map(r=>r? cargosOf(r) : 0)}];
+  if(us.rows.some(r=>r && r.extraordinarios>0.5)) series.push({name:'Extraordinarias', color:'var(--c5)', values:us.rows.map(r=>r? r.extraordinarios : 0)});
+  if(!u) out.push(h('div',{class:'empty', text:`${us.uf} no figura en la liquidación de ${labL(P[mi])}. Elegí otro mes para ver el detalle de la cuota.`}));
+  else {
+    const cuota = monthlyCharge(u); const i3 = mi>=3 && us.rows[mi-3]? mi-3 : -1;
+    const same = pu && Math.abs(pu.coef-u.coef)<=1e-4;
+    const callout = !pu? null : same
+      ? h('div',{class:'callout'}, h('span',{class:'tile good'}, ic('check')), h('span',{}, strong('Tu coeficiente no cambió'), ` respecto de ${labM(P[mi-1])}.`, i3>=0? ` En los últimos 3 meses tus expensas ${chg(u.expensas, us.rows[i3].expensas)>=0? 'subieron' : 'bajaron'} ${pc(Math.abs(chg(u.expensas, us.rows[i3].expensas)),false)}; las del edificio, ${pc(Math.abs(chg(M[mi].grand_total.expensas, M[i3].grand_total.expensas)),false)}.` : ''))
+      : h('div',{class:'callout', style:'border-color:var(--serious-ink)'}, h('span',{class:'tile serious'}, ic('alert')), h('span',{}, strong(`Tu coeficiente cambió de ${nf2.format(pu.coef)} % a ${nf2.format(u.coef)} %`), ` en ${labM(P[mi])}, sin nota en la liquidación. `, h('button',{class:'lnk', style:'min-height:0;display:inline-flex', onclick:()=>go('revisar',{openControl:'coef'})}, 'Ver el control de coeficientes', ic('arrow'))));
+    out.push(h('div',{class:'hero', style:'flex:none'},
+      h('div',{class:'eyebrow', text:`Tu cuota · ${us.uf}${u.piso? ', '+u.piso : ''} · ${labL(P[mi])}`}),
+      h('div',{class:'hero-line'}, h('div',{class:'disp hero-num num', text:fp(cuota)})),
+      h('div',{class:'chips'},
+        pu? h('span',{class:'hchip'}, h('strong',{class:'num', style:'color:'+dcol(chg(cuota, monthlyCharge(pu))), text:pc(chg(cuota, monthlyCharge(pu)))}), `vs. ${labM(P[mi-1])}`) : null,
+        h('span',{class:'hchip'}, h('strong',{class:'num', text:fp(cuota/30)}), 'por día'),
+        pu? h('span',{class:'hchip'}, h('strong',{class:'num', style:'color:'+dcol(chg(u.expensas, pu.expensas)), text:pc(chg(u.expensas, pu.expensas))}), 'las expensas sin ABL') : null,
+        u.deuda>0.5? h('span',{class:'hchip', style:'border-color:var(--bad-ink)'}, h('strong',{class:'num', style:'color:var(--bad-ink)', text:fp(u.deuda)}), `de deuda y ${fp(u.intereses)} de intereses, aparte de la cuota`) : null),
+      h('p',{}, 'Tu coeficiente es ', strong(nf2.format(u.coef)+' %'), `: por cada $ 100 que gasta el edificio, pagás $ ${nf2.format(u.coef)}. `, (u.coef_abl && Math.abs(u.coef_abl-u.coef)>1e-4)? `El ABL se liquida aparte, con su propio coeficiente (${nf2.format(u.coef_abl)} %).` : 'El ABL se liquida aparte, según tu partida.'),
+      callout));
+  }
+  const ro = (k, v, c) => h('div',{}, h('span',{class:'k', style:'display:inline-flex;align-items:center;gap:6px'}, c? sw(c) : null, k), h('span',{class:'v num', text:v}));
+  out.push(h('section',{class:'card'}, cardHead('Tu cuota mes a mes', 'Lo que la liquidación le cargó a la unidad cada mes, sin contar deuda ni intereses. Tocá un mes para elegirlo.'),
+    colChart({series, height:220, fmt:fp, lbFmt:fm}),
+    u? h('div',{class:'kv', style:'padding-top:4px'}, series.map(sr=>ro(sr.name, fp(sr.values[mi]), sr.color)), ro(`Total de ${labM(P[mi])}`, fp(monthlyCharge(u)))) : null,
+    more('uf-hist', 'Historial completo de la unidad', 'cuota, pagos y estado de cada mes', ()=>table([
+      {key:'period', label:'Mes', render:r=>cap(labL(r.period))}, {key:'expensas', label:'Expensas', num:true, fmt:fp}, {key:'_d', label:'Var.', num:true, render:r=>r._d==null? null : h('span',{style:'color:'+dcol(r._d), text:pc(r._d)})},
+      {key:'abl', label:'ABL', num:true, sortVal:r=>r.uf? ablOf(r) : null, render:r=>r.uf? fp(ablOf(r)) : null}, {key:'cargos', label:'Cargos part.', num:true, sortVal:r=>r.uf? cargosOf(r) : null, render:r=>r.uf && cargosOf(r)? fp(cargosOf(r)) : null},
+      {key:'cuota', label:'Cuota del mes', num:true, sortVal:r=>r.uf? monthlyCharge(r) : null, render:r=>r.uf? h('span',{class:'b', text:fp(monthlyCharge(r))}) : null},
+      {key:'saldo_ant', label:'Saldo anterior', num:true, fmt:fp}, {key:'pago', label:'Pagado', num:true, fmt:fp}, {key:'deuda', label:'Deuda', num:true, render:r=>r.deuda>0.5? fp(r.deuda) : null}, {key:'intereses', label:'Intereses', num:true, render:r=>r.intereses>0.5? fp(r.intereses) : null},
+      {key:'total', label:'Total a pagar', num:true, fmt:fp}, {key:'coef', label:'Coef.', num:true, render:r=>r.coef!=null? nf2.format(r.coef)+' %' : null},
+      {key:'st', label:'Estado', render:r=>r.uf? st(...ST_LABEL[payStatus(r)]) : null}],
+      us.rows.map((r,i)=>Object.assign({period:P[i], _i:i, _d:(i && r && us.rows[i-1])? chg(r.expensas, us.rows[i-1].expensas) : null}, r||{})), {sortKey:'period', sortDir:1, rowClass:r=>r._i===mi?'sel':'', onSelect:r=>setMonth(r._i)}))));
+  if(u){
+    const bd = unitBreakdown(u, mi); const all = [...bd.rows, ...bd.extra.filter(e=>e.amount>0)].sort((a,b)=>b.amount-a.amount); const top = all.slice(0,12), rest = all.slice(12);
+    if(rest.length) top.push({name:`Otros ${rest.length} conceptos`, amount:sum(rest.map(r=>r.amount)), cons:null, other:true});
+    const mx = Math.max(...top.map(r=>r.amount), 1); const t2 = bd.rows.slice(0,2);
+    out.push(card('A quién le pagás', t2.length===2? [`De cada $ 100 de tu cuota de ${labM(P[mi])}, `, strong(`$ ${nf0.format(t2[0].amount/bd.cuota*100)}`), ` van a ${t2[0].name} y `, strong(`$ ${nf0.format(t2[1].amount/bd.cuota*100)}`), ` a ${t2[1].name}.`] : null,
+      h('div',{style:'display:flex;flex-direction:column;gap:4px'}, top.map(r=>{ const row = h('div',{class:'brow', tabindex:'0', style:'grid-template-columns:minmax(0,2fr) minmax(0,3fr) 96px'}, h('span',{class:'ell', style:'font-size:13px', title:r.name, text:r.name}), h('span',{class:'bar-track'}, h('span',{class:'bar', style:`left:0;width:${Math.max(0.5,r.amount/mx*100)}%;background:${r.other?'var(--line-2)':'var(--c1)'}`})), h('span',{class:'num b', style:'text-align:right;font-size:13px', text:fp(r.amount)})); tipOn(row, r.name, ()=>[{label:'Te corresponde', value:fp(r.amount)}, {label:'Gasto del consorcio', value:r.cons==null? '—' : fp(r.cons)}, {label:'Parte de tu cuota', value:pc(r.amount/bd.cuota,false)}]); return row; }))));
+    const byR = {}; [...bd.rows, ...bd.extra].forEach(r=>{ byR[r.rubro] = (byR[r.rubro]||0) + r.amount; });
+    const rr = Object.entries(byR).map(([rubro,amount])=>({rubro, amount})).sort((a,b)=>b.amount-a.amount); const mxr = Math.max(...rr.map(r=>r.amount), 1);
+    const grid = 'grid-template-columns:minmax(0,1fr) 120px 64px 96px';
+    out.push(card('Por rubro', `Cómo se reparte tu cuota de ${labL(P[mi])}.`,
+      h('div',{style:'display:flex;flex-direction:column'},
+        h('div',{class:'prow muted', style:grid+';min-height:0;padding:0 8px 8px;font-size:12px;border-bottom:1px solid var(--line);border-radius:0'}, h('span',{text:'Rubro'}), h('span',{style:'text-align:right', text:'Te corresponde'}), h('span',{style:'text-align:right', text:'%'}), h('span',{class:'hide-sm', style:'text-align:right', text:'Por día'})),
+        rr.map(r=>h('div',{class:'prow', style:grid}, h('span',{style:'display:flex;flex-direction:column;gap:5px;min-width:0'}, h('span',{style:'display:inline-flex;align-items:center;gap:8px'}, sw(rubroColor(r.rubro)), h('span',{class:'ell b', text:r.rubro})), r.amount>0? h('span',{class:'thin'}, h('i',{style:`width:${r.amount/mxr*100}%;background:${rubroColor(r.rubro)}`})) : null), h('span',{class:'num b', style:'text-align:right', text:fp(r.amount)}), h('span',{class:'num ink2', style:'text-align:right', text:pc(r.amount/bd.cuota,false)}), h('span',{class:'num ink2 hide-sm', style:'text-align:right', text:fp(r.amount/30)}))),
+        h('div',{class:'prow', style:grid+';border-top:1px solid var(--line-2);border-radius:0'}, h('span',{class:'b', text:'Cuota del mes'}), h('span',{class:'num b', style:'text-align:right', text:fp(bd.cuota)}), h('span',{class:'num b', style:'text-align:right', text:'100 %'}), h('span',{class:'num b hide-sm', style:'text-align:right', text:fp(bd.cuota/30)}))),
+      h('p',{class:'note', text:`Cada concepto sale de multiplicar el gasto del consorcio por tu coeficiente (${nf2.format(u.coef)} %). Las previsiones son gastos estimados que se cobran por adelantado y se reintegran al mes siguiente. Los cargos particulares y la deuda son propios de la unidad.`})));
+  }
+  return out;
+};
+
+// ================= MOROSIDAD =================
+function kpiBox(label, value, foot, vals, mi){ return h('div',{class:'kpi'}, h('span',{class:'top'}, h('span',{text:label})), h('span',{class:'v disp num', text:value}), h('span',{class:'foot'}, foot), vals? spark(vals, mi) : null); }
+const HM = {paid:['check','pagó el saldo completo'], partial:['dash','pagó una parte'], unpaid:['x','no registró pago'], none:[null,'sin saldo que pagar']};
+function heatmap(mi){
+  const rows = ufStats.map(u=>({u, unp:u.statuses.slice(0,mi+1).filter(x=>x==='unpaid').length, par:u.statuses.slice(0,mi+1).filter(x=>x==='partial').length}))
+    .filter(x=>S.payFilter==='all' || x.u.uf===UF || x.unp || x.par || (x.u.rows[mi] && x.u.rows[mi].deuda>0.5)).sort((a,b)=>b.unp-a.unp || b.par-a.par);
+  const tbl = h('table',{class:'tbl hm'}); tbl.append(h('thead',{}, h('tr',{}, h('th',{scope:'col', text:'Unidad'}), P.map((p,i)=>h('th',{scope:'col', class:i===mi?'hsel':'', style:'text-align:center', text:lab(p)})), h('th',{scope:'col', class:'r', text:'Sin pagar'}), h('th',{scope:'col', class:'r', text:'Deuda'}))));
+  const tb = h('tbody'); rows.forEach(x=>{ const u = x.u; const tr = h('tr',{class:u.uf===UF?'sel':''}, h('td',{}, h('span',{class:'b', text:u.uf}), u.piso? h('span',{class:'muted', text:' · '+u.piso}) : null));
+    u.statuses.forEach((stt,i)=>{ const row = u.rows[i]; const cell = h('span',{class:'hc '+stt, tabindex:'0'}, HM[stt][0]? ic(HM[stt][0], 14) : null, h('span',{class:'sr-only', text:`${labL(P[i])}: ${row? HM[stt][1] : 'sin datos'}`}));
+      tipOn(cell, `${u.uf} · ${labL(P[i])}`, ()=>row? [{label:'Saldo anterior', value:fp(row.saldo_ant)},{label:'Pagó', value:fp(row.pago)},{label:'Deuda', value:fp(row.deuda)},{label:'Intereses', value:fp(row.intereses)},{label:'Cuota del mes', value:fp(monthlyCharge(row))},{label:'Total a pagar', value:fp(row.total)}] : [{label:'No figura en la liquidación', value:''}]);
+      tr.append(h('td',{class:i===mi?'hsel':''}, cell)); });
+    const rm = u.rows[mi]; tr.append(h('td',{class:'r', text: x.unp? String(x.unp) : ''}), h('td',{class:'r b', text: rm && rm.deuda>0.5? fp(rm.deuda) : ''})); tb.append(tr); });
+  tbl.append(tb); return rows.length? h('div',{class:'tbl-box', style:'max-height:560px'}, tbl) : h('div',{class:'empty', text:'Ninguna unidad con atrasos hasta este mes.'});
+}
+TABS.morosidad = function(){
+  const mi = MI, s_ = monthStats(mi), p_ = monthStats(mi-1), dAt = debtorsAt(mi);
+  const upTo = u => u.statuses.slice(0,mi+1); const chronic = ufStats.filter(u=>upTo(u).filter(x=>x==='unpaid').length>=2).length; const allPaid = ufStats.filter(u=>upTo(u).every(x=>x==='paid'||x==='none')).length;
+  const kpis = h('div',{class:'kpis'},
+    kpiBox(`Deuda al cierre de ${labM(P[mi])}`, fm(s_.deuda), [p_? dnode(s_.deuda, p_.deuda, true, vsPrev(mi)) : null, h('span',{text:`${dAt.length} de ${M[mi].units.length} unidades`})], totalDeuda, mi),
+    kpiBox('Cobranza del mes', s_.cobro!=null? pc(s_.cobro,false) : '—', [p_ && p_.cobro!=null && s_.cobro!=null? h('span',{}, h('span',{class:'num', style:'font-weight:600;color:'+dcol(s_.cobro-p_.cobro,false), text:pp(s_.cobro-p_.cobro)}), ' '+vsPrev(mi)) : null, h('span',{text:`pagado ${fm(s_.pago)} de ${fm(s_.saldoAnt)} adeudados al inicio`})], collectionRate, mi),
+    kpiBox('Intereses punitorios', fm(s_.int), [h('span',{text:'acumulados · 10 % mensual sobre la deuda'})], totalInt, mi),
+    kpiBox('Pagaron todos los meses', `${allPaid} de ${ufStats.length}`, [h('span',{text:`hasta ${labM(P[mi])} · ${chronic} ${chronic===1?'unidad':'unidades'} con 2 o más meses sin pagar`})]));
+  const debt = card('Deuda y cobranza por mes', 'Deuda de los propietarios al cierre de cada mes. Debajo de cada mes, el porcentaje cobrado de lo que se adeudaba al inicio.',
+    colChart({series:[{name:'Deuda al cierre', color:'var(--c2)', values:totalDeuda}], height:200, labelAll:true, under:i=>collectionRate[i]==null? '—' : pc(collectionRate[i],false)}),
+    more('deuda-tabla', 'Deuda, intereses y cobranza de cada mes', 'en una tabla', ()=>table([{key:'period', label:'Mes', render:r=>cap(labL(r.period))}, {key:'deuda', label:'Deuda al cierre', num:true, fmt:fp}, {key:'int', label:'Intereses acumulados', num:true, fmt:fp}, {key:'n', label:'Unidades con deuda', num:true}, {key:'saldoAnt', label:'Adeudado al inicio', num:true, fmt:fp}, {key:'pago', label:'Pagado', num:true, fmt:fp}, {key:'cobro', label:'Cobranza', num:true, render:r=>r.cobro==null? null : pc(r.cobro,false)}], P.map((p,i)=>({i, period:p, deuda:totalDeuda[i], int:totalInt[i], n:M[i].units.filter(u=>u.deuda>0.5).length, saldoAnt:totalSaldoAnt[i], pago:totalPago[i], cobro:collectionRate[i]})), {sortKey:'period', sortDir:1, rowClass:r=>r.i===mi?'sel':'', onSelect:r=>setMonth(r.i)})));
+  const mxd = Math.max(...dAt.map(d=>d.deuda), 1); const share = dAt.length && s_.deuda>0? dAt[0].deuda/s_.deuda : 0;
+  const who = card('Quién debe', dAt.length? [`${dAt.length} ${dAt.length===1?'unidad':'unidades'} al cierre de ${labL(P[mi])}. `, strong(dAt[0].uf), ` concentra el ${pc(share,false)} de la deuda.`] : `Ninguna unidad debe al cierre de ${labL(P[mi])}.`,
+    dAt.length? h('div',{style:'display:flex;flex-direction:column;gap:6px'}, dAt.map(d=>h('div',{class:'brow', style:'grid-template-columns:minmax(0,84px) minmax(0,1fr) auto;min-height:44px'},
+      h('span',{style:'display:flex;flex-direction:column;min-width:0'}, h('span',{class:'b', text:d.uf + (d.flag? ' '+d.flag : '')}), h('span',{class:'muted ell', style:'font-size:12px', text:d.piso||''})),
+      h('span',{style:'display:flex;flex-direction:column;gap:5px;min-width:0'}, h('span',{class:'bar-track', style:'height:12px'}, h('span',{class:'bar', style:`left:0;width:${Math.max(1,d.deuda/mxd*100)}%;background:var(--c2)`})), h('span',{class:'muted', style:'font-size:12px', text:`≈ ${d.charge? nf1.format(d.deuda/d.charge) : '—'} cuotas · ${d.unpaidTo} ${d.unpaidTo===1?'mes':'meses'} sin pagar${d.partialTo? ` (+${d.partialTo} parcial)` : ''} · cuota ${fp(d.charge)}`})),
+      h('span',{style:'display:flex;flex-direction:column;align-items:flex-end'}, h('span',{class:'num b', text:fp(d.deuda)}), h('span',{class:'num muted', style:'font-size:12px', text:`+ ${fp(d.intereses)} de intereses`}))))) : null);
+  const hm = h('section',{class:'card'}, cardHead('Historial de pago', 'Pago registrado en cada mes contra el saldo que la unidad debía. Pasá el cursor por una celda para ver los importes.'),
+    h('div',{class:'filters'}, h('button',{class:'fchip', 'aria-pressed': S.payFilter==='issues'? 'true':'false', onclick:()=>{ S.payFilter = 'issues'; renderView(); }}, 'Solo con atrasos'), h('button',{class:'fchip', 'aria-pressed': S.payFilter==='all'? 'true':'false', onclick:()=>{ S.payFilter = 'all'; renderView(); }}, 'Todas las unidades'),
+      h('span',{class:'legend', style:'font-size:12px;margin-left:8px'}, Object.entries(HM).map(([k,v])=>h('span',{}, h('span',{class:'hc '+k, style:'width:26px;min-width:26px;height:22px'}, v[0]? ic(v[0], 12) : null), v[1])))),
+    heatmap(mi));
+  let moved;
+  if(mi===0) moved = h('div',{class:'empty', text:`${cap(labM(P[0]))} es el primer mes del período: no hay mes anterior para comparar.`});
+  else { const prevU = Object.fromEntries(M[mi-1].units.map(u=>[u.uf,u])), curU = M[mi].units;
+    const groupsU = [
+      ['Dejaron de pagar', 'bad', curU.filter(u=>payStatus(u)==='unpaid' && prevU[u.uf] && payStatus(prevU[u.uf])!=='unpaid'), u=>`no pagó los ${fp(u.saldo_ant)} que debía`],
+      ['Siguen sin pagar', 'serious', curU.filter(u=>payStatus(u)==='unpaid' && prevU[u.uf] && payStatus(prevU[u.uf])==='unpaid'), u=>`deuda ${fp(u.deuda)} + ${fp(u.intereses)} de intereses`],
+      ['Pagaron una parte', 'warn', curU.filter(u=>payStatus(u)==='partial'), u=>`${fp(u.pago)} de ${fp(u.saldo_ant)}`],
+      ['Se pusieron al día', 'good', curU.filter(u=>u.deuda<=0.5 && prevU[u.uf] && prevU[u.uf].deuda>0.5), u=>`canceló ${fp(prevU[u.uf].deuda)}`]];
+    moved = h('div',{class:'row', style:'gap:14px'}, groupsU.map(([t,c,list,fn])=>h('div',{style:'flex:1 1 230px;min-width:0;display:flex;flex-direction:column;gap:8px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--bg)'}, h('div',{style:'display:flex;justify-content:space-between;align-items:center;gap:8px'}, h('h3',{text:t}), st(c, String(list.length))), list.length? list.map(u=>h('div',{style:'font-size:13px'}, strong(u.uf), h('span',{class:'ink2 num', text:' · '+fn(u)}))) : h('div',{class:'muted', style:'font-size:13px', text:'Ninguna.'})))); }
+  const ev = coefEvents.find(e=>e.mi===mi);
+  return [kpis, h('div',{class:'row'}, h('div',{style:'flex:1 1 440px;min-width:0;display:flex'}, debt), h('div',{style:'flex:1 1 440px;min-width:0;display:flex'}, who)), hm,
+    card(`Qué cambió en ${labM(P[mi])}`, mi? `Respecto de ${labM(P[mi-1])}.` : null, moved, ev? h('div',{class:'callout'}, h('span',{class:'tile serious'}, ic('alert')), h('span',{}, `${ev.changed.length} unidades cambiaron su coeficiente de prorrateo${ev.added.length? ` y se agregaron ${ev.added.map(u=>u.uf).join(', ')}` : ''}. `, h('button',{class:'lnk', style:'min-height:0;display:inline-flex', onclick:()=>go('revisar',{openControl:'coef'})}, 'Ver en Revisar', ic('arrow')))) : null)];
 };
 
 // ---------- arranque ----------
