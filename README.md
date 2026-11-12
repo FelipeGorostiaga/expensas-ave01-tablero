@@ -37,7 +37,7 @@ Todas escriben en `refresh.log` una línea por mes con `OK` o la lista de difere
 encontró. Cada mes se valida contra los propios totales impresos en el PDF: la suma de
 facturas tiene que coincidir con el total de cada rubro y con el total general, y la suma de
 las filas por unidad con la fila de totales del prorrateo. Si un mes no da `OK`, el tablero lo
-muestra en la pestaña **Controles**.
+muestra en la pestaña **Revisar**.
 
 Después de regenerar, basta con recargar `index.html` en el navegador. La versión publicada
 en claude.ai no se actualiza sola: hay que volver a publicar `index.html` junto con `data.js`
@@ -71,33 +71,40 @@ La liquidación imprime un saldo contable que descuenta las previsiones no pagad
 administración entrega un extracto bancario, cargá sus números en `bank_statements.json`
 (un objeto por mes: `period`, `opening`, `closing`, `min_balance`, `deposits`, `sircreb`,
 `sircreb_rate`, `ley25413`, `fees`, `iibb_payments`, `source`, `notes`) y regenerá con
-`FORCE=1 ./refresh.sh`. El tablero muestra el saldo real en Finanzas, Resumen, Novedades y
-Controles para esos meses. No hace falta tener el extracto de todos los meses.
+`FORCE=1 ./refresh.sh`. El tablero muestra el saldo real en Caja, Resumen y
+Revisar para esos meses. No hace falta tener el extracto de todos los meses.
 
 ## Qué calcula el tablero
 
-Arriba de todo hay dos selectores: el **mes** (por defecto, el último) y la **unidad**. El mes
-elegido se compara siempre con el anterior y manda sobre Resumen, Novedades, Precios,
-Unidades, Finanzas y el filtro de Detalle. La unidad elegida se recuerda en el dispositivo.
+Arriba de todo está el **selector de mes**: una línea con el gasto total de cada liquidación
+(en el teléfono, flechas y puntos). El mes elegido manda sobre toda la página y se compara
+siempre con el anterior. La **unidad** se elige con el botón "Mi unidad": no hay ninguna
+elegida por defecto y la elección se guarda solo en ese dispositivo. El botón de al lado cambia
+entre tema oscuro y claro.
 
-- **Resumen**: gasto del mes elegido, variación contra el mes anterior, deuda de propietarios,
-  saldo de caja, costo de administrar, tabla mes a mes (clic en una fila cambia el mes),
-  hallazgos del período y preguntas para la administración.
-- **Novedades**: todo lo que cambió en el mes elegido: proveedores nuevos o que dejaron de
-  facturar, subas y bajas, gastos puntuales, unidades que dejaron de pagar o se pusieron al
-  día, previsiones, notas de la administración.
-- **Precios**: importe neto por proveedor y mes, qué cambió contra el mes anterior, índice
-  base 100, variación del período y mayor salto.
-- **Proveedores**: CUIT, meses activos, promedio mensual, concentración del gasto,
-  proveedores que dejaron de aparecer o que son nuevos (todo el período).
-- **Unidades y morosidad**: deudores al cierre del mes elegido, cobranza, historial de pago
-  de todas las unidades, y para la unidad elegida: **qué pagás vos** (la cuota del mes
-  desglosada por proveedor y rubro según el coeficiente) y su historial.
-- **Finanzas**: saldo al cierre (impreso y más previsiones), ingresos vs. gastos, y para el
-  mes elegido: gasto por rubro, estado financiero y patrimonial comparado con el mes
-  anterior, previsiones hechas y reintegradas.
-- **Controles**: encadenamiento de saldos, aritmética del estado financiero, coeficientes,
-  saltos de precio, posibles duplicados, proveedores sin CUIT, etc.
-- **Detalle**: todas las facturas con filtros por mes, rubro y texto.
+Son seis pestañas, cada una responde una pregunta:
+
+- **Resumen** (¿qué pasó este mes?): gasto del mes, cuota de la unidad elegida, cobranza,
+  deuda, saldo de caja, gastos bancarios, costo de administrar, qué movió el gasto contra el
+  mes anterior (cascada por proveedor), alertas del mes, reparto por rubro y gasto mensual
+  por rubro. Plegado: novedades de proveedores, notas de la administración y tabla mes a mes.
+- **Mi unidad** (¿cuánto pago yo?): cuota del mes, coeficiente y si cambió, cuota mes a mes
+  (expensas, ABL, cargos particulares), a qué proveedores les paga la unidad y el reparto
+  por rubro. Plegado: historial completo de la unidad con pagos y estado.
+- **Gastos** (¿en qué se gasta?): explorador por rubro, cuánto subió cada proveedor en el
+  período, ficha de cada proveedor (CUIT, alertas, facturas) y facturas del mes con búsqueda
+  (o de todos los meses). Plegado: totales por rubro original y matriz proveedor por mes.
+- **Morosidad** (¿quién no paga?): deuda y cobranza por mes, quién debe, mapa de pagos de
+  cada unidad y qué cambió en el mes.
+- **Caja** (¿hay plata?): saldo impreso contra el banco, ingresos contra gastos, desglose de
+  los gastos bancarios según el extracto, extracto del mes y previsiones vigentes. Plegado:
+  saldo de cada mes, previsiones y reintegros, estado financiero y patrimonial completo.
+- **Revisar** (¿qué preguntar?): los controles automáticos (encadenamiento de saldos,
+  aritmética del estado financiero, coeficientes, saltos de precio, posibles duplicados,
+  proveedores sin CUIT, etc.) y las preguntas para la administración, con un botón para
+  copiarlas.
+
+Las tablas completas de la versión anterior siguen estando: aparecen como secciones
+plegables ("Ver…") dentro de la pestaña que corresponde.
 
 Las variaciones son nominales (sin ajustar por inflación).

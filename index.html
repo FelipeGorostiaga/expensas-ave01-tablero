@@ -58,7 +58,7 @@ a{color:var(--ink-2)} a:hover{color:var(--ink)}
 .muted{color:var(--muted)} .ink2{color:var(--ink-2)} .b{font-weight:600;color:var(--ink)}
 .ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.scroll-x{position:relative;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
 .ic{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .ln{fill:none;stroke-width:2px;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
 .good{color:var(--good-ink)} .bad{color:var(--bad-ink)} .warn{color:var(--warn-ink)}
@@ -118,7 +118,8 @@ header.top .right{display:flex;flex-wrap:wrap;align-items:center;gap:14px}
 .step-dots button[aria-pressed="true"]{font-weight:600;color:var(--ink)}
 
 /* ---------- pestañas ---------- */
-nav.tabs{margin-top:-4px;overflow-y:hidden}
+nav.tabs{margin-top:-4px;overflow-y:hidden;scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
 nav.tabs>div{display:flex;gap:4px;min-width:max-content;border-bottom:1px solid var(--line)}
 .tab{display:flex;flex-direction:column;gap:2px;padding:12px 16px 14px;min-height:44px;border-bottom:2px solid transparent;margin-bottom:-1px}
 .tab .l{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;color:var(--ink-2)}
@@ -199,7 +200,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl td.selc,.tbl th.selc{background:var(--surface-2)}
 .tbl tbody tr.click{cursor:pointer} .tbl tbody tr.click:hover td{background:var(--surface-2)}
 .tbl tfoot td{font-weight:600;border-bottom:0;border-top:1px solid var(--line-2)}
-.tbl-box{overflow:auto;scrollbar-width:thin}
+.tbl-box{position:relative;overflow:auto;scrollbar-width:thin}
 details.more{border-top:1px solid var(--line);padding-top:6px}
 details.more>summary{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;font-weight:600;cursor:pointer;list-style:none;color:var(--ink)}
 details.more>summary::-webkit-details-marker{display:none}
@@ -236,7 +237,7 @@ button.alert:hover{border-color:var(--ink-2)}
 .hm td{padding:3px;text-align:center}
 .hm td:first-child{text-align:left;padding:3px 8px}
 .hm td.r{text-align:right;padding:3px 8px}
-.hc{display:grid;place-items:center;width:100%;min-width:34px;height:30px;border-radius:6px;flex:none}
+.hc{position:relative;display:grid;place-items:center;width:100%;min-width:34px;height:30px;border-radius:6px;flex:none}
 .hc.paid{background:var(--good-bg);color:var(--good-ink)} .hc.partial{background:var(--warn-bg);color:var(--warn-ink)} .hc.unpaid{background:var(--bad-bg);color:var(--bad-ink)} .hc.none{border:1px dashed var(--line-2)}
 .hm td.hsel,.hm th.hsel{box-shadow:inset 2px 0 0 var(--ink),inset -2px 0 0 var(--ink);color:var(--ink)}
 .hm thead th.hsel{box-shadow:inset 2px 0 0 var(--ink),inset -2px 0 0 var(--ink),inset 0 2px 0 var(--ink)}
@@ -252,10 +253,11 @@ button.alert:hover{border-color:var(--ink-2)}
 
 /* diálogo de unidad */
 dialog.dlg{width:min(560px,calc(100vw - 32px));max-height:min(640px,calc(100vh - 48px));padding:0;border:1px solid var(--line-2);border-radius:16px;background:var(--surface);color:var(--ink)}
+dialog.dlg[open]{display:flex;flex-direction:column;overflow:hidden}
 dialog.dlg::backdrop{background:rgba(0,0,0,.55)}
-.dlg-in{display:flex;flex-direction:column;gap:14px;padding:20px;max-height:inherit}
+.dlg-in{display:flex;flex-direction:column;gap:14px;padding:20px;min-height:0;flex:1 1 auto}
 .dlg-h{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.uf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px;overflow:auto;padding:2px}
+.uf-grid{min-height:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px;overflow:auto;padding:2px}
 .uf-grid button{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:44px;padding:4px;border:1px solid var(--line);border-radius:10px;font-weight:600;font-size:13px}
 .uf-grid button small{font-weight:400;font-size:11px;color:var(--muted)}
 .uf-grid button:hover{border-color:var(--ink-2)}
@@ -284,7 +286,11 @@ footer.foot{font-size:12px;color:var(--muted);display:flex;flex-direction:column
   .sel-wide{display:none}
   .sel-narrow{display:flex}
   header.top h1{font-size:32px}
+  header.top .right>div:first-child{flex:1 0 100%}
   .cc{gap:6px} .cc-cols,.cc-x{gap:4px} .cc-y{width:44px}
+  .cc-col:not([aria-pressed="true"]) .lb{display:none}
+  .cc-x small{font-size:9.5px;white-space:nowrap;letter-spacing:-.02em}
+  details.more>summary .hint{display:none}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
@@ -779,8 +785,10 @@ function risesCard(){
       {key:'name', label:'Proveedor / concepto', render:r=>[r.name, r.provider? null : h('span',{class:'muted',text:' (sin proveedor)'})]}, {key:'rubro', label:'Rubro', sortVal:r=>[...r.rubros].join(', '), render:r=>[...r.rubros].join(', ')},
       ...P.map((p,i)=>({key:'m'+i, label:lab(p), num:true, sortVal:r=>r.values[i], cls:i===mi?'selc':'', render:r=>r.values[i]? fm(r.values[i]) : null})),
       {key:'dm', label:`Var. ${labS(P[mi])}`, num:true, sortVal:r=>mi? r.values[mi]-r.values[pi] : 0, render:r=>{ if(!mi) return null; const a = r.values[pi], b = r.values[mi]; if(a===b) return null; return [h('span',{style:'font-weight:600;color:'+(b>a?'var(--bad-ink)':'var(--good-ink)'), text:sm(b-a)}), h('span',{class:'muted', text: a>0&&b>0? ' '+pc(b/a-1) : (b>a? ' nuevo' : ' no facturó')})]; }},
-      {key:'total', label:'Total', num:true, fmt:fm}, {key:'change', label:'Var. período', num:true, render:r=>r.change==null? null : h('span',{style:'color:'+dcol(r.change), text:pc(r.change)})},
-      {key:'maxJump', label:'Mayor salto', num:true, render:r=>r.maxJump==null? null : [h('span',{style:'color:'+dcol(r.maxJump), text:pc(r.maxJump)}), h('span',{class:'muted', text:' '+labS(P[r.jumpAt])})]}],
+      {key:'total', label:'Total', num:true, fmt:fm}, {key:'share', label:'% del gasto', num:true, sortVal:r=>r.total, render:r=>pc(r.total/grandTotal,false)}, {key:'change', label:'Var. período', num:true, render:r=>r.change==null? null : h('span',{style:'color:'+dcol(r.change), text:pc(r.change)})},
+      {key:'maxJump', label:'Mayor salto', num:true, render:r=>r.maxJump==null? null : [h('span',{style:'color:'+dcol(r.maxJump), text:pc(r.maxJump)}), h('span',{class:'muted', text:' '+labS(P[r.jumpAt])})]},
+      {key:'active', label:'Meses', num:true}, {key:'n', label:'Facturas', num:true, sortVal:r=>r.items.length, render:r=>String(r.items.length)}, {key:'avg', label:'Promedio mensual', num:true, sortVal:r=>r.active? r.total/r.active : 0, render:r=>r.active? fm(r.total/r.active) : null},
+      {key:'cuit', label:'CUIT', render:r=>r.cuit? h('span',{class:'mono', text:r.cuit}) : (r.provider && r.name!=='AGIP INM/ABL'? st('warn','sin CUIT') : null)}],
       G, {sortKey: mi? 'dm' : 'total', maxHeight:520, onSelect:g=>{ S.prov = g.name; S.provFilter = 'all'; renderView(); const el = $('quien-cobra'); if(el) el.scrollIntoView({block:'start'}); }})]; }));
 }
 
